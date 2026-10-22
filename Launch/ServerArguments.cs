@@ -307,18 +307,27 @@ public static class ServerArguments
         }
     }
 
+    /// <summary>Smallest context window the launcher ever serves, regardless of what the model advertises.</summary>
+    private const int MinimumContextSize = 64_000;
+
     private static void AddContext(List<string> args, List<string> notes, ResolvedModel model, LaunchSettings settings)
     {
+        int context;
+
         if (settings.ContextSize is > 0)
         {
+            context = Math.Max(settings.ContextSize.Value, MinimumContextSize);
             args.Add("-c");
-            args.Add(settings.ContextSize.Value.ToString());
+            args.Add(context.ToString());
 
-            // A context the user asked for is used as it is, but the tuner knows how
-            // much of it actually fits into the free video memory.
-            if (settings.Tuning is { } plan && settings.ContextSize.Value > plan.ContextSize)
+            if (context != settings.ContextSize.Value)
             {
-                notes.Add($"auto-tune: the requested context {settings.ContextSize.Value} is larger than the {plan.ContextSize} that fits in the free video memory, the server may run out of memory");
+                notes.Add($"auto-tune: the requested context {settings.ContextSize.Value} was raised to {context} to meet the minimum context size.");
+            }
+
+            if (settings.Tuning is { } plan && context > plan.ContextSize)
+            {
+                notes.Add($"auto-tune: the requested context {context} is larger than the {plan.ContextSize} that fits in the free video memory, the server may run out of memory");
             }
 
             return;
@@ -326,7 +335,10 @@ public static class ServerArguments
 
         if (model.Gguf.ContextLength is not { } native)
         {
-            notes.Add("the model does not advertise a context length, so llama.cpp picks one");
+            context = MinimumContextSize;
+            notes.Add($"the model does not advertise a context length, so using the minimum of {context} tokens.");
+            args.Add("-c");
+            args.Add(context.ToString());
             return;
         }
 
@@ -334,12 +346,17 @@ public static class ServerArguments
         // once a projector and a draft model share the memory, so the launcher starts from
         // the smaller of the two instead of failing with an out of memory error.
         int ceiling = settings.MaxContextSize > 0 ? settings.MaxContextSize : (int)native;
-        int context = (int)Math.Min(native, (ulong)ceiling);
+        context = (int)Math.Min(native, (ulong)ceiling);
+        context = Math.Max(context, MinimumContextSize);
 
         args.Add("-c");
         args.Add(context.ToString());
 
-        if ((ulong)context < native)
+        if ((ulong)context > native)
+        {
+            notes.Add($"context {context} (raised to the minimum {MinimumContextSize} tokens; the model allows {native})");
+        }
+        else if ((ulong)context < native)
         {
             notes.Add($"context {context} (the model allows {native}, capped at {ceiling} - use --ctx to change it)");
         }
