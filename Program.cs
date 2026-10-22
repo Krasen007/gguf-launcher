@@ -1,77 +1,285 @@
 ﻿using System.Runtime.Versioning;
 using System.Text;
-using GgufLauncher.Cli;
-using GgufLauncher.Commands;
 
 [assembly: SupportedOSPlatform("Windows")]
 
 namespace GgufLauncher;
 
-/// <summary>Entry point of the GGUF launcher.</summary>
+/// <summary>
+/// Entry point - simplified launcher matching the Go version's behavior.
+/// </summary>
 public static class Program
 {
-    /// <summary>Runs the launcher and returns the process exit code.</summary>
-    public static async Task<int> Main(string[] args)
+    public static int Main(string[] args)
     {
         UseUtf8Console();
 
-        CliOptions options;
-        try
+        if (args.Length == 0 || args[0] is "-h" or "--help")
         {
-            options = CliOptions.Parse(args);
-        }
-        catch (ArgumentException ex)
-        {
-            Console.Error.WriteLine($"[launcher] {ex.Message}");
-            Console.Error.WriteLine();
-            HelpText.Print();
-            return 2;
+            PrintHelp();
+            return 0;
         }
 
-        using CancellationTokenSource shutdown = new();
-        Console.CancelKeyPress += (_, e) =>
+        switch (args[0])
         {
-            e.Cancel = true;
-            shutdown.Cancel();
-        };
+            case "--register":
+                FileAssociation.Register();
+                return 0;
 
-        try
+            case "--unregister":
+                FileAssociation.Unregister();
+                return 0;
+        }
+
+        string modelPath = args[0];
+
+        // Validate model exists
+        if (!File.Exists(modelPath))
         {
-            return options.Mode switch
+            Console.Error.WriteLine($"[launcher] model not found: {modelPath}");
+            return 1;
+        }
+
+        string modelFullPath = Path.GetFullPath(modelPath);
+        string modelDir = Path.GetDirectoryName(modelFullPath) ?? ".";
+        string modelStem = Path.GetFileNameWithoutExtension(modelFullPath);
+
+        // Find llama-server
+        string exeDir = AppContext.BaseDirectory;
+        string? server = LlamaServerLocator.Find(exeDir);
+        if (server is null)
+        {
+            Console.Error.WriteLine("[launcher] llama-server.exe not found.");
+            Console.Error.WriteLine("[launcher] put it next to this exe, on PATH, or set LLAMA_SERVER.");
+            return 1;
+        }
+
+        // Build args: model path first, then find siblings, then merge args
+        List<string> finalArgs = ["-m", modelFullPath];
+
+        // Sibling files: mmproj and speculative draft
+        string lowerName = Path.GetFileName(modelFullPath).ToLowerInvariant();
+        if (!lowerName.StartsWith("mmproj") && !IsDraft(lowerName))
+        {
+            string? mmproj = FindSibling(modelDir, "mmproj", "4x");
+            if (mmproj is not null)
             {
-                CliMode.Help => Help(),
-                CliMode.Register => AssociationCommand.Register(options),
-                CliMode.Unregister => AssociationCommand.Unregister(options),
-                CliMode.Status => AssociationCommand.Status(options),
-                _ => await LaunchCommand.RunAsync(options, shutdown.Token).ConfigureAwait(false),
-            };
+                finalArgs.Add("--mmproj");
+                finalArgs.Add(mmproj);
+                Console.WriteLine($"[launcher] mmproj: {Path.GetFileName(mmproj)}");
+            }
+
+            string? draft = FindDraft(modelDir);
+            if (draft is not null)
+            {
+                string specType = InferSpecType(draft);
+                if (!string.IsNullOrEmpty(specType))
+                {
+                    finalArgs.Add("--spec-draft-model");
+                    finalArgs.Add(draft);
+                    finalArgs.Add("--spec-type");
+                    finalArgs.Add(specType);
+                    finalArgs.Add("--spec-draft-p-min");
+                    finalArgs.Add("0.00");
+                    finalArgs.Add("--spec-draft-n-min");
+                    finalArgs.Add("0");
+                    finalArgs.Add("--spec-draft-n-max");
+                    finalArgs.Add("3");
+                    finalArgs.Add("--cache-type-k-draft");
+                    finalArgs.Add("q8_0");
+                    finalArgs.Add("--cache-type-v-draft");
+                    finalArgs.Add("q8_0");
+                    finalArgs.Add("-ngld");
+                    finalArgs.Add("99");
+                    Console.WriteLine($"[launcher] draft: {Path.GetFileName(draft)} ({specType})");
+                }
+            }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+
+        // Merge all args sources
+        List<string> extra = args.Length > 1 ? [.. args[1..]] : [];
+        List<string> merged = LauncherArgs.Merge(exeDir, modelFullPath, extra);
+
+        // Add host/port
+        string host = LauncherArgs.GetLastValue(merged, "--host") ?? "0.0.0.0";
+        string port = LauncherArgs.GetLastValue(merged, "--port") ?? "8080";
+
+        // Map wildcard bind addresses to loopback for browser
+        if (host == "0.0.0.0" || host == "::" || string.IsNullOrEmpty(host))
         {
-            Console.Error.WriteLine($"[launcher] {ex.Message}");
+            host = "127.0.0.1";
+        }
+
+        finalArgs.Add("--host");
+        finalArgs.Add(host);
+        finalArgs.Add("--port");
+        finalArgs.Add(port);
+        finalArgs.Add("--alias");
+        finalArgs.Add(modelStem);
+
+        // Add merged args (excluding host/port which we set explicitly)
+        foreach (string arg in merged)
+        {
+            if (arg != "--host" && arg != "--port" && arg != "--alias" && arg != "-m")
+            {
+                finalArgs.Add(arg);
+            }
+        }
+
+        // Get --no-browser before filtering
+        bool noBrowser = LauncherArgs.HasNoBrowser(merged);
+
+        string url = $"http://{host}:{port}/";
+
+        // Print command
+        Console.WriteLine($"[launcher] {server} {string.Join(" ", finalArgs)}");
+        Console.WriteLine();
+
+        // Open browser if requested
+        if (!noBrowser)
+        {
+            _ = OpenWhenReadyAsync(url);
+        }
+
+        // Run llama-server directly, passing through Ctrl+C
+        try
+        {
+            var process = new System.Diagnostics.Process
+            {
+                StartInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = server,
+                    Arguments = string.Join(" ", finalArgs.Select(a => $"\"{a}\"")),
+                    WorkingDirectory = modelDir,
+                    UseShellExecute = false,
+                }
+            };
+
+            process.Start();
+            process.WaitForExit();
+
+            if (process.ExitCode != 0)
+            {
+                Console.WriteLine($"[launcher] llama-server exited: exit code {process.ExitCode}");
+            }
+
+            return process.ExitCode;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[launcher] failed to start: {ex.Message}");
             return 1;
         }
     }
 
-    private static int Help()
+    private static bool IsDraft(string lowerName)
     {
-        HelpText.Print();
-        return 0;
+        return lowerName.EndsWith(".gguf") &&
+            (lowerName.StartsWith("dspark-") || lowerName.Contains("draft") || lowerName.Contains("-mtp"));
     }
 
-    /// <summary>
-    /// Switches the console to UTF-8. Without it the Windows console code page mangles the
-    /// separator characters and any unicode the model metadata contains.
-    /// </summary>
+    private static string? FindSibling(string dir, string prefix, string prefer)
+    {
+        if (!Directory.Exists(dir)) return null;
+
+        string? first = null;
+        foreach (string file in Directory.GetFiles(dir, "*.gguf"))
+        {
+            string name = Path.GetFileName(file).ToLowerInvariant();
+            if (!name.Contains(prefix)) continue;
+
+            if (!string.IsNullOrEmpty(prefer) && name.Contains(prefer))
+            {
+                return file;
+            }
+
+            first ??= file;
+        }
+
+        return first;
+    }
+
+    private static string? FindDraft(string dir)
+    {
+        if (!Directory.Exists(dir)) return null;
+
+        foreach (string file in Directory.GetFiles(dir, "*.gguf"))
+        {
+            string stem = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
+            if (stem.Contains("dspark") || stem.Contains("draft") || stem.Contains("-mtp"))
+            {
+                // Only return if we can infer a spec type
+                if (!string.IsNullOrEmpty(InferSpecType(file)))
+                {
+                    return file;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string InferSpecType(string draftPath)
+    {
+        string stem = Path.GetFileNameWithoutExtension(draftPath).ToLowerInvariant();
+        if (stem.Contains("dspark")) return "draft-dspark";
+        if (stem.Contains("-mtp")) return "draft-mtp";
+        return "";
+    }
+
+    private static async Task OpenWhenReadyAsync(string url)
+    {
+        using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(2) };
+        var deadline = DateTime.UtcNow.AddMinutes(15);
+
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                using var response = await client.GetAsync(url + "health");
+                if (response.IsSuccessStatusCode)
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+                    }
+                    catch
+                    {
+                        // Ignore browser launch failures
+                    }
+                    return;
+                }
+            }
+            catch
+            {
+                // Not ready yet
+            }
+
+            await Task.Delay(500);
+        }
+    }
+
+    private static void PrintHelp()
+    {
+        Console.WriteLine("gguf-launcher.exe model.gguf [llama-server args...]");
+        Console.WriteLine("       gguf-launcher.exe --register | --unregister");
+        Console.WriteLine();
+        Console.WriteLine("Argument precedence (later wins):");
+        Console.WriteLine("  1. built-in defaults");
+        Console.WriteLine("  2. gguf-launcher.args (next to this exe)");
+        Console.WriteLine("  3. <model-name>.args (next to the .gguf)");
+        Console.WriteLine("  4. command-line extras");
+    }
+
     private static void UseUtf8Console()
     {
         try
         {
             Console.OutputEncoding = Encoding.UTF8;
         }
-        catch (Exception ex) when (ex is IOException or PlatformNotSupportedException)
+        catch
         {
-            // A redirected console may refuse the change; the ASCII output stays readable.
+            // Ignore failures (redirected console)
         }
     }
 }
