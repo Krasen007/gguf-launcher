@@ -54,6 +54,9 @@ public sealed class CliOptions
     /// <summary>Whether the expert weights stay in system memory.</summary>
     public bool? CpuMoe { get; init; }
 
+    /// <summary>Whether the model's Jinja chat template is used.</summary>
+    public bool? Jinja { get; init; }
+
     /// <summary>Multimodal projector to use instead of the one found next to the model.</summary>
     public string? Mmproj { get; init; }
 

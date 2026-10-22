@@ -108,6 +108,12 @@ internal static class CliOptionParser
             case "--no-cpu-moe":
                 draft.CpuMoe = false;
                 break;
+            case "--jinja":
+                draft.Jinja = true;
+                break;
+            case "--no-jinja":
+                draft.Jinja = false;
+                break;
             default:
                 return false;
         }
@@ -327,6 +333,8 @@ internal static class CliOptionParser
         public bool? NoWebUi { get; set; }
         /// <summary>Whether the expert weights stay in system memory.</summary>
         public bool? CpuMoe { get; set; }
+        /// <summary>Whether the model's Jinja chat template is used.</summary>
+        public bool? Jinja { get; set; }
         /// <summary>Multimodal projector to use.</summary>
         public string? Mmproj { get; set; }
         /// <summary>Draft model for speculative decoding.</summary>
@@ -367,6 +375,7 @@ internal static class CliOptionParser
                 OpenBrowser = OpenBrowser,
                 NoWebUi = NoWebUi,
                 CpuMoe = CpuMoe,
+                Jinja = Jinja,
                 Mmproj = Mmproj,
                 SpecDraftModel = DraftModel,
                 SpecType = SpecType,

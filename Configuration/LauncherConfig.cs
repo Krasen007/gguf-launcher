@@ -46,7 +46,9 @@ public sealed class LauncherConfig
     /// <summary>Use flash attention. Faster and lighter on memory, supported by every recent llama.cpp build.</summary>
     public bool FlashAttention { get; set; } = true;
 
-    /// <summary>Use the model's Jinja chat template. Required by most modern instruct models.</summary>
+    /// <summary>Use the model's Jinja chat template. Required by most modern instruct models
+    /// and by tool/function calling. Some clients send non-alternating roles which strict
+    /// Jinja templates reject; use --no-jinja if your client does not alternate roles.</summary>
     public bool Jinja { get; set; } = true;
 
     /// <summary>Number of server slots. 1 keeps the KV cache budget for a single conversation.</summary>

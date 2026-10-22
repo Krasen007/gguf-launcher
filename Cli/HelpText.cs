@@ -35,6 +35,8 @@ public static class HelpText
               --spec-type <type>         draft strategy, e.g. draft-dspark or draft-mtp
               --cpu-moe                  keep MoE weights in system RAM
               --no-cpu-moe               force MoE weights onto the GPU
+              --jinja                    use the model's Jinja chat template
+              --no-jinja                 do not use the Jinja chat template (default)
               --no-browser               do not open a browser when the server is ready
               --no-webui                 serve the API only, without the built-in web UI
               --dry-run                  print the command line instead of running it
