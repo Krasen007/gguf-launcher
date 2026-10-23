@@ -99,9 +99,11 @@ public static class LauncherArgs
     public static string? GetLastValue(List<string> args, string name)
     {
         string? value = null;
-        for (int i = 0; i < args.Count - 1; i++)
+        for (int i = 0; i < args.Count; i++)
         {
-            if (args[i] == name)
+            // Only consume the following token when it is not itself a flag,
+            // so a trailing/malformed flag cannot eat the next argument.
+            if (args[i] == name && i + 1 < args.Count && !args[i + 1].StartsWith('-'))
             {
                 value = args[i + 1];
             }

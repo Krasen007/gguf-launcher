@@ -55,12 +55,18 @@ public static class LlamaServerLocator
                 string[] matches = Directory.GetFiles(packagesRoot, "llama-server.exe", SearchOption.AllDirectories);
                 if (matches.Length > 0)
                 {
-                    // Return the newest version
-                    return matches
+                    // Prefer a ggml.llamacpp build; otherwise the newest by write time.
+                    string? preferred = matches
                         .Where(p => p.Contains("ggml.llamacpp", StringComparison.OrdinalIgnoreCase))
                         .OrderByDescending(p => File.GetLastWriteTimeUtc(p))
-                        .FirstOrDefault()
-                        ?? matches[0];
+                        .FirstOrDefault();
+                    if (preferred is not null)
+                    {
+                        return preferred;
+                    }
+                    return matches
+                        .OrderByDescending(p => File.GetLastWriteTimeUtc(p))
+                        .First();
                 }
             }
         }

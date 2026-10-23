@@ -86,9 +86,9 @@ public static class FileAssociation
         {
             ShellNotify(0x08000000, 0);
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore failures
+            Console.Error.WriteLine($"[launcher] shell notify failed: {ex.Message}");
         }
     }
 

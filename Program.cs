@@ -31,7 +31,25 @@ public static class Program
                 return 0;
         }
 
-        string modelPath = args[0];
+        // Accept both `model.gguf` and `-m model.gguf` (llama-server style).
+        string modelPath;
+        string[] rest;
+        if (args[0] is "-m" or "--model")
+        {
+            if (args.Length < 2)
+            {
+                Console.Error.WriteLine("[launcher] missing model path after -m");
+                PrintHelp();
+                return 1;
+            }
+            modelPath = args[1];
+            rest = args[2..];
+        }
+        else
+        {
+            modelPath = args[0];
+            rest = args[1..];
+        }
 
         // Validate model exists
         if (!File.Exists(modelPath))
@@ -99,7 +117,7 @@ public static class Program
         }
 
         // Merge all args sources
-        List<string> extra = args.Length > 1 ? [.. args[1..]] : [];
+        List<string> extra = [.. rest];
         List<string> merged = LauncherArgs.Merge(exeDir, modelFullPath, extra);
 
         // Add host/port - default to 0.0.0.0 and 8080, allow overrides from args
@@ -136,7 +154,10 @@ public static class Program
             // Skip duplicates - we already added these explicitly
             if (arg == "--host" || arg == "--port" || arg == "--alias" || arg == "-m")
             {
-                i++; // skip the value too
+                if (i + 1 < merged.Count && !merged[i + 1].StartsWith('-'))
+                {
+                    i++; // skip the value too
+                }
                 continue;
             }
             finalArgs.Add(arg);
@@ -199,7 +220,7 @@ public static class Program
         if (!Directory.Exists(dir)) return null;
 
         string? first = null;
-        foreach (string file in Directory.GetFiles(dir, "*.gguf"))
+        foreach (string file in Directory.GetFiles(dir, "*.gguf").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
         {
             string name = Path.GetFileName(file).ToLowerInvariant();
             if (!name.Contains(prefix)) continue;
@@ -219,7 +240,7 @@ public static class Program
     {
         if (!Directory.Exists(dir)) return null;
 
-        foreach (string file in Directory.GetFiles(dir, "*.gguf"))
+        foreach (string file in Directory.GetFiles(dir, "*.gguf").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
         {
             string stem = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
             if (stem.Contains("dspark") || stem.Contains("draft") || stem.Contains("-mtp"))
@@ -247,6 +268,7 @@ public static class Program
     {
         using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(2) };
         var deadline = DateTime.UtcNow.AddMinutes(15);
+        bool reported = false;
 
         while (DateTime.UtcNow < deadline)
         {
@@ -259,9 +281,13 @@ public static class Program
                     {
                         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // Ignore browser launch failures
+                        if (!reported)
+                        {
+                            Console.Error.WriteLine($"[launcher] could not open browser: {ex.Message}");
+                            reported = true;
+                        }
                     }
                     return;
                 }
@@ -278,6 +304,7 @@ public static class Program
     private static void PrintHelp()
     {
         Console.WriteLine("gguf-launcher.exe model.gguf [llama-server args...]");
+        Console.WriteLine("       gguf-launcher.exe -m model.gguf [llama-server args...]");
         Console.WriteLine("       gguf-launcher.exe --register | --unregister");
         Console.WriteLine();
         Console.WriteLine("Argument precedence (later wins):");
@@ -285,6 +312,8 @@ public static class Program
         Console.WriteLine("  2. gguf-launcher.args (next to this exe)");
         Console.WriteLine("  3. <model-name>.args (next to the .gguf)");
         Console.WriteLine("  4. command-line extras");
+        Console.WriteLine();
+        Console.WriteLine("Use --no-browser to skip opening the browser.");
     }
 
     private static void UseUtf8Console()
