@@ -208,3 +208,4 @@ FakesAssemblies/
 
 # JetBrains Rider
 *.sln.iml
+publish/GgufLauncher.exe

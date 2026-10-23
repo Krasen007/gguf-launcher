@@ -91,6 +91,8 @@ public static class Program
                     finalArgs.Add("q8_0");
                     finalArgs.Add("-ngld");
                     finalArgs.Add("99");
+                    // Keep draft sampling on CPU - Vulkan backend aborts when sampling on GPU
+                    finalArgs.Add("--no-spec-draft-backend-sampling");
                     Console.WriteLine($"[launcher] draft: {Path.GetFileName(draft)} ({specType})");
                 }
             }
@@ -100,36 +102,50 @@ public static class Program
         List<string> extra = args.Length > 1 ? [.. args[1..]] : [];
         List<string> merged = LauncherArgs.Merge(exeDir, modelFullPath, extra);
 
-        // Add host/port
-        string host = LauncherArgs.GetLastValue(merged, "--host") ?? "0.0.0.0";
-        string port = LauncherArgs.GetLastValue(merged, "--port") ?? "8080";
+        // Add host/port - default to 0.0.0.0 and 8080, allow overrides from args
+        string serverHost = "0.0.0.0";
+        string port = "8080";
 
-        // Map wildcard bind addresses to loopback for browser
-        if (host == "0.0.0.0" || host == "::" || string.IsNullOrEmpty(host))
+        // Check merged args for explicit values (later flags win)
+        string? mergedHost = LauncherArgs.GetLastValue(merged, "--host");
+        string? mergedPort = LauncherArgs.GetLastValue(merged, "--port");
+
+        if (!string.IsNullOrEmpty(mergedHost))
+            serverHost = mergedHost;
+        if (!string.IsNullOrEmpty(mergedPort))
+            port = mergedPort;
+
+        // Map wildcard bind addresses to loopback for browser URL only
+        string browserHost = serverHost;
+        if (browserHost == "0.0.0.0" || browserHost == "::" || string.IsNullOrEmpty(browserHost))
         {
-            host = "127.0.0.1";
+            browserHost = "127.0.0.1";
         }
 
         finalArgs.Add("--host");
-        finalArgs.Add(host);
+        finalArgs.Add(serverHost);
         finalArgs.Add("--port");
         finalArgs.Add(port);
         finalArgs.Add("--alias");
         finalArgs.Add(modelStem);
 
-        // Add merged args (excluding host/port which we set explicitly)
-        foreach (string arg in merged)
+        // Add merged args (but keep host/port if explicitly provided - they're added above)
+        for (int i = 0; i < merged.Count; i++)
         {
-            if (arg != "--host" && arg != "--port" && arg != "--alias" && arg != "-m")
+            string arg = merged[i];
+            // Skip duplicates - we already added these explicitly
+            if (arg == "--host" || arg == "--port" || arg == "--alias" || arg == "-m")
             {
-                finalArgs.Add(arg);
+                i++; // skip the value too
+                continue;
             }
+            finalArgs.Add(arg);
         }
 
         // Get --no-browser before filtering
         bool noBrowser = LauncherArgs.HasNoBrowser(merged);
 
-        string url = $"http://{host}:{port}/";
+        string url = $"http://{browserHost}:{port}/";
 
         // Print command
         Console.WriteLine($"[launcher] {server} {string.Join(" ", finalArgs)}");
