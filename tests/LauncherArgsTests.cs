@@ -60,9 +60,58 @@ public class LauncherArgsTests
     }
 
     [Fact]
-    public void Merge_AppliesDefaults()
+    public void Merge_LaterSourcesWin()
     {
-        var merged = LauncherArgs.Merge(AppContext.BaseDirectory, "model.gguf", Array.Empty<string>());
-        Assert.Contains("-ngl", merged);
+        // Global args dir
+        var exeDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(exeDir);
+        File.WriteAllText(Path.Combine(exeDir, "gguf-launcher.args"), "--host 0.0.0.0 -c 4096");
+
+        // Model dir with per-model args
+        var modelDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(modelDir);
+        var modelPath = Path.Combine(modelDir, "model.gguf");
+        File.WriteAllText(modelPath, "");
+        File.WriteAllText(Path.Combine(modelDir, "model.args"), "--host 127.0.0.1 -c 8192");
+
+        try
+        {
+            // CLI overrides both global and per-model
+            var merged = LauncherArgs.Merge(exeDir, modelPath, new[] { "--host", "127.0.0.1", "-c", "2048" });
+            Assert.Equal("2048", LauncherArgs.GetLastValue(merged, "-c"));
+            Assert.Equal("127.0.0.1", LauncherArgs.GetLastValue(merged, "--host"));
+
+            // Without CLI, per-model overrides global
+            merged = LauncherArgs.Merge(exeDir, modelPath, Array.Empty<string>());
+            Assert.Equal("8192", LauncherArgs.GetLastValue(merged, "-c"));
+            Assert.Equal("127.0.0.1", LauncherArgs.GetLastValue(merged, "--host"));
+
+            // Without per-model args, global applies (built-in defaults are overridden)
+            var otherModel = Path.Combine(modelDir, "other.gguf");
+            merged = LauncherArgs.Merge(exeDir, otherModel, Array.Empty<string>());
+            Assert.Equal("4096", LauncherArgs.GetLastValue(merged, "-c"));
+            Assert.Equal("0.0.0.0", LauncherArgs.GetLastValue(merged, "--host"));
+
+            // With no args files at all, built-in defaults are present
+            merged = LauncherArgs.Merge(exeDir, Path.Combine(Path.GetTempPath(), "nonexistent.gguf"), Array.Empty<string>());
+            Assert.Contains("-ngl", merged);
+            Assert.Equal("99", LauncherArgs.GetLastValue(merged, "-ngl"));
+        }
+        finally
+        {
+            Directory.Delete(exeDir, true);
+            Directory.Delete(modelDir, true);
+        }
+    }
+
+    /// <summary>
+    /// --no-browser is a launcher-only flag. Merge must keep it so Program can detect it;
+    /// it is stripped from the args actually forwarded to llama-server elsewhere.
+    /// </summary>
+    [Fact]
+    public void Merge_RetainsNoBrowserForLauncherDetection()
+    {
+        var merged = LauncherArgs.Merge(AppContext.BaseDirectory, "model.gguf", new[] { "--no-browser" });
+        Assert.Contains("--no-browser", merged);
     }
 }

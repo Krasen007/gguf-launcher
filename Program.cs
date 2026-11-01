@@ -120,13 +120,18 @@ public static class Program
         List<string> extra = [.. rest];
         List<string> merged = LauncherArgs.Merge(exeDir, modelFullPath, extra);
 
+        // --no-browser is a launcher-only flag: detect it before stripping it from the
+        // args forwarded to llama-server. Once stripped it can no longer be detected.
+        bool noBrowser = LauncherArgs.HasNoBrowser(merged);
+        List<string> serverArgs = LauncherArgs.FilterBrowserFlag(merged);
+
         // Add host/port - default to 0.0.0.0 and 8080, allow overrides from args
         string serverHost = "0.0.0.0";
         string port = "8080";
 
-        // Check merged args for explicit values (later flags win)
-        string? mergedHost = LauncherArgs.GetLastValue(merged, "--host");
-        string? mergedPort = LauncherArgs.GetLastValue(merged, "--port");
+        // Check args for explicit values (later flags win)
+        string? mergedHost = LauncherArgs.GetLastValue(serverArgs, "--host");
+        string? mergedPort = LauncherArgs.GetLastValue(serverArgs, "--port");
 
         if (!string.IsNullOrEmpty(mergedHost))
             serverHost = mergedHost;
@@ -147,14 +152,14 @@ public static class Program
         finalArgs.Add("--alias");
         finalArgs.Add(modelStem);
 
-        // Add merged args (but keep host/port if explicitly provided - they're added above)
-        for (int i = 0; i < merged.Count; i++)
+        // Add merged args (but keep host/port/alias/-m if explicitly provided - they're added above)
+        for (int i = 0; i < serverArgs.Count; i++)
         {
-            string arg = merged[i];
+            string arg = serverArgs[i];
             // Skip duplicates - we already added these explicitly
             if (arg == "--host" || arg == "--port" || arg == "--alias" || arg == "-m")
             {
-                if (i + 1 < merged.Count && !merged[i + 1].StartsWith('-'))
+                if (i + 1 < serverArgs.Count && !serverArgs[i + 1].StartsWith('-'))
                 {
                     i++; // skip the value too
                 }
@@ -162,9 +167,6 @@ public static class Program
             }
             finalArgs.Add(arg);
         }
-
-        // Get --no-browser before filtering
-        bool noBrowser = LauncherArgs.HasNoBrowser(merged);
 
         string url = $"http://{browserHost}:{port}/";
 
@@ -178,7 +180,7 @@ public static class Program
             _ = OpenWhenReadyAsync(url);
         }
 
-        // Run llama-server directly, passing through Ctrl+C
+        // Run llama-server directly, forwarding Ctrl+C so the server shuts down cleanly.
         try
         {
             var process = new System.Diagnostics.Process
@@ -186,9 +188,28 @@ public static class Program
                 StartInfo = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = server,
-                    Arguments = string.Join(" ", finalArgs.Select(a => $"\"{a}\"")),
+                    // Arguments = string.Join(" ", finalArgs.Select(a => $"\"{a}\"")),
                     WorkingDirectory = modelDir,
                     UseShellExecute = false,
+                }
+            };
+            // Use ArgumentList so arguments are quoted correctly by the runtime,
+            // avoiding breakage when an argument contains a literal quote character.
+            foreach (string arg in finalArgs)
+            {
+                process.StartInfo.ArgumentList.Add(arg);
+            }
+
+            Console.CancelKeyPress += (_, e) =>
+            {
+                e.Cancel = true;
+                try
+                {
+                    process.Kill();
+                }
+                catch
+                {
+                    // Process may have already exited.
                 }
             };
 

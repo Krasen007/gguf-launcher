@@ -30,8 +30,9 @@ public static class LauncherArgs
         // Command line extras
         args.AddRange(extraArgs);
 
-        // Filter out --no-browser from final args (used as a flag only)
-        return FilterBrowserFlag(args);
+        // NOTE: do NOT strip --no-browser here. Program.Main needs to detect it before the
+        // launcher-only flag is removed from the args forwarded to llama-server.
+        return args;
     }
 
     /// <summary>
