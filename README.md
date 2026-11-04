@@ -1,3 +1,5 @@
+![alt text](icon.ico)
+
 # GGUF Launcher
 
 Double-click a `.gguf` file in Windows Explorer and a llama.cpp server starts for it,
