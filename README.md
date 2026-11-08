@@ -37,10 +37,11 @@ Start the native quick-pick window (no arguments):
 GgufLauncher.exe
 ```
 
-The window lists the last 10 models the launcher opened, most recent first. Selecting one
-shows its `<model-name>.args` (or a generated preview when the file does not exist yet), lets
-you edit and save it, and launches the model with the normal headless flow in a new console
-window. Use `Save & launch` to launch exactly what is in the editor, and `Ctrl+S` to save.
+The window lists the last 10 models the launcher opened, most recent first. Use `Load model...`
+to pick a `.gguf` that is not in the list yet; it joins the recent list and opens with the
+generated default arguments. Selecting a model shows its `<model-name>.args` (or a generated
+preview when the file does not exist yet), lets you edit and save it, and launches the model
+with the normal headless flow in a new console window. Use `Save & launch` to launch exactly what is in the editor, and `Ctrl+S` to save.
 The list is stored in `%LOCALAPPDATA%\GgufLauncher\recent-models.json`.
 
 Opening a `.gguf` file (or passing a model path) never shows this window; it keeps the

@@ -58,6 +58,30 @@ public sealed class LauncherUiModel
         return models;
     }
 
+    /// <summary>
+    /// Records a model chosen in the window and returns its list entry, so a model that has
+    /// never been opened can be loaded without going through Explorer first.
+    /// </summary>
+    public LauncherModelEntry LoadModel(string modelPath)
+    {
+        string fullPath = Path.GetFullPath(modelPath);
+        if (!File.Exists(fullPath))
+        {
+            throw new InvalidOperationException("model file not found");
+        }
+
+        try
+        {
+            _store.Record(fullPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new InvalidOperationException("could not update the recent models: " + ex.Message, ex);
+        }
+
+        return LoadModels().First(m => string.Equals(m.Path, fullPath, StringComparison.OrdinalIgnoreCase));
+    }
+
     public LauncherArgsContent LoadArgs(string modelPath)
     {
         string recordedPath = ResolveRecorded(modelPath);

@@ -140,3 +140,19 @@ position while keeping every range and both of its values in source order. Other
 ordering remains unchanged.
 
 Test: `tests/ReviewFixesOrderingTests.cs`
+
+## 2026-11-08 - load a model from the UI
+
+Request:
+
+> @todo.md begin 1.
+>
+> 1. in the UI of the app, we should be able to load a model, so add a load button - it uses defaults on first run
+
+Behavior added: the native quick-pick window has a `Load model...` button that opens a
+GGUF file picker, records the chosen model in the recent list, and opens it in the args
+editor. A model with no `<model-name>.args` file shows the generated default argument
+preview (the same content the launcher writes on first launch), so the first launch uses
+the built-in defaults.
+
+Test: `tests/LoadModelButtonTests.cs`

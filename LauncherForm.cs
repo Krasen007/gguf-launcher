@@ -32,6 +32,7 @@ public sealed class LauncherForm : Form
     private readonly Button _saveButton = new();
     private readonly Button _launchButton = new();
     private readonly Button _saveLaunchButton = new();
+    private readonly Button _loadButton = new();
     private readonly Button _refreshButton = new();
     private readonly System.Windows.Forms.Timer _refreshTimer = new();
 
@@ -150,11 +151,26 @@ public sealed class LauncherForm : Form
             Margin = new Padding(0, 1, 0, 0),
         };
 
+        FlowLayoutPanel actions = new()
+        {
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            AutoSize = true,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            Margin = new Padding(0, 12, 0, 0),
+        };
+
+        _loadButton.Text = "Load model...";
+        _loadButton.AutoSize = true;
+        _loadButton.Padding = new Padding(12, 4, 12, 4);
+        _loadButton.Margin = new Padding(0, 0, 6, 0);
+        _loadButton.UseVisualStyleBackColor = true;
+        _loadButton.Click += (_, _) => LoadModelFromDialog();
+
         _refreshButton.Text = "Refresh";
         _refreshButton.AutoSize = true;
         _refreshButton.Padding = new Padding(12, 4, 12, 4);
-        _refreshButton.Margin = new Padding(0, 12, 0, 0);
-        _refreshButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        _refreshButton.Margin = Padding.Empty;
         _refreshButton.UseVisualStyleBackColor = true;
         _refreshButton.Click += (_, _) =>
         {
@@ -162,10 +178,13 @@ public sealed class LauncherForm : Form
             SetStatus("Refreshed.");
         };
 
+        actions.Controls.Add(_loadButton);
+        actions.Controls.Add(_refreshButton);
+
         header.Controls.Add(title, 0, 0);
         header.Controls.Add(subtitle, 0, 1);
-        header.Controls.Add(_refreshButton, 1, 0);
-        header.SetRowSpan(_refreshButton, 2);
+        header.Controls.Add(actions, 1, 0);
+        header.SetRowSpan(actions, 2);
         return header;
     }
 
@@ -713,6 +732,45 @@ public sealed class LauncherForm : Form
             hadUnsavedChanges
                 ? "Launched with the saved .args file. Use Save && launch to include your edits."
                 : "Launched in a new console window; the browser opens when the server is ready.",
+            success: true);
+    }
+
+    private void LoadModelFromDialog()
+    {
+        using OpenFileDialog dialog = new()
+        {
+            Title = "Load a GGUF model",
+            Filter = "GGUF models (*.gguf)|*.gguf|All files (*.*)|*.*",
+            CheckFileExists = true,
+            Multiselect = false,
+        };
+
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        if (_dirty && !ConfirmDiscard())
+        {
+            return;
+        }
+
+        LauncherModelEntry entry;
+        try
+        {
+            entry = _model.LoadModel(dialog.FileName);
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Could not load model: " + ex.Message, error: true);
+            return;
+        }
+
+        RefreshModelList(entry.Path, reloadEditor: true);
+        SetStatus(
+            entry.HasArgs
+                ? "Loaded " + entry.Name + "."
+                : "Loaded " + entry.Name + ". No args file yet - the first launch uses the built-in defaults.",
             success: true);
     }
 
