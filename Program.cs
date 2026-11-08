@@ -1,9 +1,11 @@
 ﻿using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Windows.Forms;
 
 [assembly: SupportedOSPlatform("Windows")]
+[assembly: InternalsVisibleTo("GgufLauncher.Tests")]
 
 namespace GgufLauncher;
 
@@ -80,6 +82,11 @@ public static class Program
         string modelDir = plan.ModelDir;
         bool noBrowser = plan.NoBrowser;
         string url = plan.Url;
+        Uri? browserUri = noBrowser ? null : TryCreateBrowserUri(url);
+        if (!noBrowser && browserUri is null)
+        {
+            Log.Warn("could not open browser: invalid server URL");
+        }
 
         try
         {
@@ -134,16 +141,16 @@ public static class Program
 
             process.Start();
 
-            // Fire-and-forget: the task ends on success, server exit, or cancellation, and
-            // every expected failure is handled inside ServerReadiness.
-            if (!noBrowser)
+            if (browserUri is not null)
             {
-                _ = ServerReadiness.OpenWhenReadyAsync(
-                    new Uri(url),
-                    () => !process.HasExited,
-                    TryOpenBrowser,
-                    Log.Warn,
-                    cancellationToken: shutdown.Token);
+                _ = ObserveReadinessAsync(
+                    ServerReadiness.OpenWhenReadyAsync(
+                        browserUri,
+                        () => !process.HasExited,
+                        TryOpenBrowser,
+                        Log.Warn,
+                        cancellationToken: shutdown.Token),
+                    Log.Warn);
             }
 
             process.WaitForExit();
@@ -254,6 +261,26 @@ public static class Program
         {
             Log.Warn($"could not open browser: {ex.Message}");
             return false;
+        }
+    }
+
+    internal static Uri? TryCreateBrowserUri(string url)
+    {
+        return Uri.TryCreate(url, UriKind.Absolute, out Uri? browserUri) ? browserUri : null;
+    }
+
+    internal static async Task ObserveReadinessAsync(Task readinessTask, Action<string> log)
+    {
+        try
+        {
+            await readinessTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            log($"browser readiness failed: {ex.Message}");
         }
     }
 
