@@ -114,4 +114,28 @@ public class LauncherArgsTests
         var merged = LauncherArgs.Merge(AppContext.BaseDirectory, "model.gguf", new[] { "--no-browser" });
         Assert.Contains("--no-browser", merged);
     }
+
+    [Fact]
+    public void Normalize_KeepsLastValueOfRepeatedFlag()
+    {
+        List<string> normalized = LauncherArgs.Normalize(["-c", "98192", "--jinja", "-c", "4096"]);
+
+        Assert.Equal(new[] { "--jinja", "-c", "4096" }, normalized);
+    }
+
+    [Fact]
+    public void Normalize_KeepsAllOccurrencesOfRepeatableFlag()
+    {
+        List<string> normalized = LauncherArgs.Normalize(["--lora", "a.gguf", "--lora", "b.gguf"]);
+
+        Assert.Equal(new[] { "--lora", "a.gguf", "--lora", "b.gguf" }, normalized);
+    }
+
+    [Fact]
+    public void Normalize_DoesNotTreatNegativeNumbersAsFlags()
+    {
+        List<string> normalized = LauncherArgs.Normalize(["--top-k", "-1", "--temp", "-1"]);
+
+        Assert.Equal(new[] { "--top-k", "-1", "--temp", "-1" }, normalized);
+    }
 }

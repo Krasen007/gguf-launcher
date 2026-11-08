@@ -13,8 +13,9 @@ with sensible defaults already set, and the web UI opens in your browser.
   `dspark-*` / `*draft*` / `*-mtp*` files for speculative decoding, and wires them up.
 - Starts `llama-server.exe` with the derived flags, streams its logs to the console,
   waits for `/health` to answer, then opens the browser.
-- Writes the effective arguments to `<model-name>.args` next to the model on every
-  launch, so the exact flags used are recorded.
+- On the first launch the effective arguments are written to `<model-name>.args` next to
+  the model. That file is never overwritten; while it exists it is the complete argument
+  set, so the launcher adds no defaults and re-detects no companion files.
 - Registers itself as the handler for `.gguf` files (per user, no administrator needed).
 
 ## Build
@@ -66,11 +67,16 @@ comment):
 
 Command-line arguments win over both. Later flags win within a file.
 
-On every launch the launcher rewrites `<model-name>.args` next to the model with the
+On the first launch the launcher creates `<model-name>.args` next to the model, with the
 full effective argument list passed to `llama-server` (everything except the model
 path), including the built-in defaults and the flags derived from companion files.
-Values edited into it are read on the next launch, but comments and formatting are
-replaced. The global `gguf-launcher.args` next to the exe is never rewritten.
+
+That file is never overwritten. While it exists it is the complete argument set for the
+model: the launcher adds neither the built-in defaults nor companion-file flags, so
+deleting a line actually removes that flag from the launch. It only adds `-m` and, when
+the file does not set them, `--host`, `--port` and `--alias`. Delete the file to have it
+regenerated with fresh defaults and detection. The global `gguf-launcher.args` next to
+the exe is never written by the launcher and still applies before the per-model file.
 
 Example `gguf-launcher.args`:
 

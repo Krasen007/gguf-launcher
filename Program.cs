@@ -75,9 +75,18 @@ public static class Program
         // Build args: model path first, then find siblings, then merge args
         List<string> finalArgs = ["-m", modelFullPath];
 
+        // An existing per-model args file is the complete argument set: do not add
+        // companion-file flags on top of it, and do not add the baked-in defaults.
+        string perModelArgsPath = LauncherArgs.PerModelArgsPath(modelFullPath);
+        bool hasPerModelArgs = File.Exists(perModelArgsPath);
+        if (hasPerModelArgs)
+        {
+            Console.WriteLine($"[launcher] args file: {perModelArgsPath}");
+        }
+
         // Sibling files: mmproj and speculative draft
         string lowerName = Path.GetFileName(modelFullPath).ToLowerInvariant();
-        if (!lowerName.StartsWith("mmproj") && !IsDraft(lowerName))
+        if (!hasPerModelArgs && !lowerName.StartsWith("mmproj") && !IsDraft(lowerName))
         {
             string? mmproj = FindSibling(modelDir, "mmproj", "4x");
             if (mmproj is not null)
@@ -174,8 +183,11 @@ public static class Program
 
         try
         {
-            string argsFile = LauncherArgs.WriteEffectiveArgsFile(modelFullPath, finalArgs);
-            Console.WriteLine($"[launcher] args file: {argsFile}");
+            string? argsFile = LauncherArgs.CreateEffectiveArgsFileIfMissing(modelFullPath, finalArgs);
+            if (argsFile is not null)
+            {
+                Console.WriteLine($"[launcher] created args file: {argsFile}");
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
