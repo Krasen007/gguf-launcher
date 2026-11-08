@@ -1,1 +1,0 @@
-1. add UI to the app when started, it should display the last run models for quick pick

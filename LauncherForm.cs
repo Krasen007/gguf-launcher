@@ -18,6 +18,7 @@ public sealed class LauncherForm : Form
     private static readonly Color SuccessColor = Color.FromArgb(30, 126, 78);
     private static readonly Color DangerColor = Color.FromArgb(190, 45, 52);
     private static readonly Color BadgeBack = Color.FromArgb(232, 242, 255);
+    private const string ArgumentNoteHint = "Place the cursor on an argument line to see what it does.";
 
     private readonly LauncherUiModel _model;
     private readonly ListBox _modelList = new();
@@ -27,6 +28,7 @@ public sealed class LauncherForm : Form
     private readonly Label _modelDirectory = new();
     private readonly Label _argsPath = new();
     private readonly Label _argsBadge = new();
+    private readonly Label _argumentNote = new();
     private readonly Label _status = new();
     private readonly Button _reloadButton = new();
     private readonly Button _saveButton = new();
@@ -287,13 +289,14 @@ public sealed class LauncherForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 5,
             Margin = Padding.Empty,
             Padding = Padding.Empty,
         };
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 58F));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 31F));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
 
         panel.Controls.Add(BuildEditorHeader(), 0, 0);
@@ -310,9 +313,13 @@ public sealed class LauncherForm : Form
         _argsEditor.ForeColor = TextColor;
         _argsEditor.Margin = new Padding(0, 4, 0, 4);
         _argsEditor.TextChanged += ArgsEditor_TextChanged;
+        _argsEditor.KeyUp += (_, _) => UpdateArgumentNote();
+        _argsEditor.MouseUp += (_, _) => UpdateArgumentNote();
+        _argsEditor.MouseMove += (_, e) => UpdateArgumentNote(_argsEditor.GetCharIndexFromPosition(e.Location));
         panel.Controls.Add(_argsEditor, 0, 2);
 
-        panel.Controls.Add(BuildFooter(), 0, 3);
+        panel.Controls.Add(BuildArgumentNoteRow(), 0, 3);
+        panel.Controls.Add(BuildFooter(), 0, 4);
         return panel;
     }
 
@@ -396,6 +403,41 @@ public sealed class LauncherForm : Form
 
         row.Controls.Add(label, 0, 0);
         row.Controls.Add(_argsPath, 1, 0);
+        return row;
+    }
+
+    private Control BuildArgumentNoteRow()
+    {
+        TableLayoutPanel row = new()
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+        };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+
+        Label label = new()
+        {
+            Text = "INFO",
+            Font = _boldFont,
+            ForeColor = MutedColor,
+            AutoSize = true,
+            Margin = new Padding(0, 6, 12, 0),
+        };
+
+        _argumentNote.Dock = DockStyle.Fill;
+        _argumentNote.AutoEllipsis = true;
+        _argumentNote.TextAlign = ContentAlignment.MiddleLeft;
+        _argumentNote.Font = _smallFont;
+        _argumentNote.ForeColor = MutedColor;
+        _argumentNote.Margin = Padding.Empty;
+        _argumentNote.Text = ArgumentNoteHint;
+
+        row.Controls.Add(label, 0, 0);
+        row.Controls.Add(_argumentNote, 1, 0);
         return row;
     }
 
@@ -587,6 +629,7 @@ public sealed class LauncherForm : Form
         }
 
         _dirty = true;
+        UpdateArgumentNote();
         SetStatus("Unsaved changes.");
     }
 
@@ -609,6 +652,7 @@ public sealed class LauncherForm : Form
         _argsEditor.SelectionStart = 0;
         _argsEditor.SelectionLength = 0;
         _loadingEditor = false;
+        UpdateArgumentNote();
 
         _current = entry;
         _currentArgs = args;
@@ -633,6 +677,7 @@ public sealed class LauncherForm : Form
         _loadingEditor = true;
         _argsEditor.Text = "";
         _loadingEditor = false;
+        _argumentNote.Text = ArgumentNoteHint;
 
         _current = null;
         _currentArgs = null;
@@ -865,6 +910,15 @@ public sealed class LauncherForm : Form
     {
         _status.Text = message;
         _status.ForeColor = error ? DangerColor : success ? SuccessColor : MutedColor;
+    }
+
+    private void UpdateArgumentNote(int? charIndex = null)
+    {
+        int index = charIndex ?? _argsEditor.SelectionStart;
+        int line = _argsEditor.GetLineFromCharIndex(index);
+        string[] lines = _argsEditor.Lines;
+        string note = line >= 0 && line < lines.Length ? ArgumentNotes.Describe(lines[line]) : "";
+        _argumentNote.Text = note.Length == 0 ? ArgumentNoteHint : note;
     }
 
     private bool ConfirmDiscard()

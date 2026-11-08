@@ -156,3 +156,18 @@ preview (the same content the launcher writes on first launch), so the first lau
 the built-in defaults.
 
 Test: `tests/LoadModelButtonTests.cs`
+
+## 2026-11-08 - info notes for each argument
+
+Request:
+
+> when ready commit, then begin 2.
+>
+> 2. each argument should show an info note on what it does
+
+Behavior added: the quick-pick window shows an INFO row under the args editor. It follows
+the line under the cursor or the mouse and explains the flag on that line; arguments the
+launcher writes have a specific note, unknown flags are reported as passed through to
+llama-server unchanged, and comments or blank lines show the hint text.
+
+Test: `tests/ArgumentInfoNoteTests.cs`
