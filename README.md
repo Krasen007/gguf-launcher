@@ -13,6 +13,8 @@ with sensible defaults already set, and the web UI opens in your browser.
   `dspark-*` / `*draft*` / `*-mtp*` files for speculative decoding, and wires them up.
 - Starts `llama-server.exe` with the derived flags, streams its logs to the console,
   waits for `/health` to answer, then opens the browser.
+- Writes the effective arguments to `<model-name>.args` next to the model on every
+  launch, so the exact flags used are recorded.
 - Registers itself as the handler for `.gguf` files (per user, no administrator needed).
 
 ## Build
@@ -63,6 +65,12 @@ comment):
 2. Per model: `<model-name>.args` next to the `.gguf`
 
 Command-line arguments win over both. Later flags win within a file.
+
+On every launch the launcher rewrites `<model-name>.args` next to the model with the
+full effective argument list passed to `llama-server` (everything except the model
+path), including the built-in defaults and the flags derived from companion files.
+Values edited into it are read on the next launch, but comments and formatting are
+replaced. The global `gguf-launcher.args` next to the exe is never rewritten.
 
 Example `gguf-launcher.args`:
 

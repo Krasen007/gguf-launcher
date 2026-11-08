@@ -170,6 +170,18 @@ public static class Program
 
         string url = $"http://{browserHost}:{port}/";
 
+        finalArgs = LauncherArgs.Normalize(finalArgs);
+
+        try
+        {
+            string argsFile = LauncherArgs.WriteEffectiveArgsFile(modelFullPath, finalArgs);
+            Console.WriteLine($"[launcher] args file: {argsFile}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"[launcher] could not write args file: {ex.Message}");
+        }
+
         // Print command
         Console.WriteLine($"[launcher] {server} {string.Join(" ", finalArgs)}");
         Console.WriteLine();

@@ -14,6 +14,7 @@
 [Ee]xt/
 [Ll]og/
 [Ll]ogs/
+.omo/
 
 # MSBuild Binary and Structured Log
 *.binlog
