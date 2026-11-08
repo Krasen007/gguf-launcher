@@ -222,6 +222,17 @@ public static class LauncherArgs
             return null;
         }
 
+        File.WriteAllText(path, RenderArgsFile(finalArgs));
+        return path;
+    }
+
+    /// <summary>
+    /// Renders the text of a per-model args file for the given effective argument list. Used
+    /// when the file is created, and by the quick-pick UI to preview the file before it
+    /// exists, so both always show the same content.
+    /// </summary>
+    public static string RenderArgsFile(IReadOnlyList<string> finalArgs)
+    {
         List<string> lines =
         [
             "# llama-server arguments for this model, written by gguf-launcher on first launch.",
@@ -248,8 +259,7 @@ public static class LauncherArgs
             }
         }
 
-        File.WriteAllLines(path, lines);
-        return path;
+        return string.Join(Environment.NewLine, lines) + Environment.NewLine;
     }
 
     /// <summary>

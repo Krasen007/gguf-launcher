@@ -1,5 +1,7 @@
-﻿using System.Runtime.Versioning;
+﻿using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Text;
+using System.Windows.Forms;
 
 [assembly: SupportedOSPlatform("Windows")]
 
@@ -10,23 +12,25 @@ namespace GgufLauncher;
 /// </summary>
 public static class Program
 {
+    [STAThread]
     public static int Main(string[] args)
     {
         UseUtf8Console();
 
-        if (args.Length == 0 || args[0] is "-h" or "--help")
+        switch (GetMode(args))
         {
-            PrintHelp();
-            return 0;
-        }
+            case AppMode.Ui:
+                return RunUi();
 
-        switch (args[0])
-        {
-            case "--register":
+            case AppMode.Help:
+                PrintHelp();
+                return 0;
+
+            case AppMode.Register:
                 FileAssociation.Register();
                 return 0;
 
-            case "--unregister":
+            case AppMode.Unregister:
                 FileAssociation.Unregister();
                 return 0;
         }
@@ -59,7 +63,7 @@ public static class Program
         }
 
         string modelFullPath = Path.GetFullPath(modelPath);
-        string modelDir = Path.GetDirectoryName(modelFullPath) ?? ".";
+        RecordRecentModel(modelFullPath);
 
         // Find llama-server
         string exeDir = AppContext.BaseDirectory;
@@ -71,89 +75,11 @@ public static class Program
             return 1;
         }
 
-        // Build args: model path first, then find siblings, then merge args
-        List<string> finalArgs = ["-m", modelFullPath];
-
-        // An existing per-model args file is the complete argument set: do not add
-        // companion-file flags on top of it, and do not add the baked-in defaults.
-        string perModelArgsPath = LauncherArgs.PerModelArgsPath(modelFullPath);
-        bool hasPerModelArgs = File.Exists(perModelArgsPath);
-        if (hasPerModelArgs)
-        {
-            Console.WriteLine($"[launcher] args file: {perModelArgsPath}");
-        }
-
-        // Sibling files: mmproj and speculative draft
-        string lowerName = Path.GetFileName(modelFullPath).ToLowerInvariant();
-        if (!hasPerModelArgs && !lowerName.StartsWith("mmproj") && !IsDraft(lowerName))
-        {
-            string? mmproj = FindSibling(modelDir, "mmproj", "4x");
-            if (mmproj is not null)
-            {
-                finalArgs.Add("--mmproj");
-                finalArgs.Add(mmproj);
-                Console.WriteLine($"[launcher] mmproj: {Path.GetFileName(mmproj)}");
-            }
-
-            string? draft = FindDraft(modelDir);
-            if (draft is not null)
-            {
-                string specType = InferSpecType(draft);
-                if (!string.IsNullOrEmpty(specType))
-                {
-                    finalArgs.Add("--spec-draft-model");
-                    finalArgs.Add(draft);
-                    finalArgs.Add("--spec-type");
-                    finalArgs.Add(specType);
-                    finalArgs.Add("--spec-draft-p-min");
-                    finalArgs.Add("0.00");
-                    finalArgs.Add("--spec-draft-n-min");
-                    finalArgs.Add("0");
-                    finalArgs.Add("--spec-draft-n-max");
-                    finalArgs.Add("3");
-                    finalArgs.Add("--cache-type-k-draft");
-                    finalArgs.Add("q8_0");
-                    finalArgs.Add("--cache-type-v-draft");
-                    finalArgs.Add("q8_0");
-                    finalArgs.Add("-ngld");
-                    finalArgs.Add("99");
-                    // Keep draft sampling on CPU - Vulkan backend aborts when sampling on GPU
-                    finalArgs.Add("--no-spec-draft-backend-sampling");
-                    Console.WriteLine($"[launcher] draft: {Path.GetFileName(draft)} ({specType})");
-                }
-            }
-        }
-
-        // Merge all args sources
-        List<string> extra = [.. rest];
-        List<string> merged = LauncherArgs.Merge(exeDir, modelFullPath, extra);
-
-        // --no-browser is a launcher-only flag: detect it before stripping it from the
-        // args forwarded to llama-server. Once stripped it can no longer be detected.
-        bool noBrowser = LauncherArgs.HasNoBrowser(merged);
-        List<string> serverArgs = LauncherArgs.FilterBrowserFlag(merged);
-
-        finalArgs.AddRange(LauncherArgs.ServerDefaultArgs(hasPerModelArgs));
-
-        for (int i = 0; i < serverArgs.Count; i++)
-        {
-            string arg = serverArgs[i];
-            // -m is already added with the model path.
-            if (arg == "-m")
-            {
-                if (i + 1 < serverArgs.Count && !serverArgs[i + 1].StartsWith('-'))
-                {
-                    i++;
-                }
-                continue;
-            }
-            finalArgs.Add(arg);
-        }
-
-        finalArgs = LauncherArgs.Normalize(finalArgs);
-
-        (string browserHost, string port) = LauncherArgs.BrowserEndpoint(finalArgs);
-        string url = $"http://{browserHost}:{port}/";
+        LaunchPlan plan = LaunchPlanner.Create(exeDir, modelFullPath, rest, Console.WriteLine);
+        List<string> finalArgs = [.. plan.FinalArgs];
+        string modelDir = plan.ModelDir;
+        bool noBrowser = plan.NoBrowser;
+        string url = plan.Url;
 
         try
         {
@@ -228,59 +154,81 @@ public static class Program
         }
     }
 
-    private static bool IsDraft(string lowerName)
+    public static AppMode GetMode(string[] args)
     {
-        return lowerName.EndsWith(".gguf") &&
-            (lowerName.StartsWith("dspark-") || lowerName.Contains("draft") || lowerName.Contains("-mtp"));
-    }
-
-    private static string? FindSibling(string dir, string prefix, string prefer)
-    {
-        if (!Directory.Exists(dir)) return null;
-
-        string? first = null;
-        foreach (string file in Directory.GetFiles(dir, "*.gguf").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+        if (args.Length == 0)
         {
-            string name = Path.GetFileName(file).ToLowerInvariant();
-            if (!name.Contains(prefix)) continue;
-
-            if (!string.IsNullOrEmpty(prefer) && name.Contains(prefer))
-            {
-                return file;
-            }
-
-            first ??= file;
+            return AppMode.Ui;
         }
 
-        return first;
+        return args[0] switch
+        {
+            "-h" or "--help" => AppMode.Help,
+            "--register" => AppMode.Register,
+            "--unregister" => AppMode.Unregister,
+            _ => AppMode.Launch,
+        };
     }
 
-    private static string? FindDraft(string dir)
+    private static int RunUi()
     {
-        if (!Directory.Exists(dir)) return null;
+        // A double-clicked console exe starts with a console window. Detach it before showing
+        // the native window; when the launcher was started from a terminal, that terminal stays.
+        FreeConsole();
 
-        foreach (string file in Directory.GetFiles(dir, "*.gguf").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+        try
         {
-            string stem = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
-            if (stem.Contains("dspark") || stem.Contains("draft") || stem.Contains("-mtp"))
-            {
-                // Only return if we can infer a spec type
-                if (!string.IsNullOrEmpty(InferSpecType(file)))
-                {
-                    return file;
-                }
-            }
+            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+
+            LauncherUiModel model = new(
+                AppContext.BaseDirectory,
+                RecentModelStore.Default,
+                LaunchModelInNewProcess);
+            Application.Run(new LauncherForm(model));
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Could not start the UI: {ex.Message}",
+                "GGUF Launcher",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+            return 1;
+        }
+    }
+
+    [DllImport("kernel32.dll")]
+    private static extern bool FreeConsole();
+
+    private static void RecordRecentModel(string modelFullPath)
+    {
+        try
+        {
+            RecentModelStore.Default.Record(modelFullPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"[launcher] could not update recent models: {ex.Message}");
+        }
+    }
+
+    private static void LaunchModelInNewProcess(string modelPath)
+    {
+        string? exePath = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(exePath))
+        {
+            throw new InvalidOperationException("launcher executable path is unavailable");
         }
 
-        return null;
-    }
-
-    private static string InferSpecType(string draftPath)
-    {
-        string stem = Path.GetFileNameWithoutExtension(draftPath).ToLowerInvariant();
-        if (stem.Contains("dspark")) return "draft-dspark";
-        if (stem.Contains("-mtp")) return "draft-mtp";
-        return "";
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = exePath,
+            Arguments = $"\"{modelPath}\"",
+            UseShellExecute = true,
+        });
     }
 
     private static async Task OpenWhenReadyAsync(string url)
@@ -322,6 +270,7 @@ public static class Program
 
     private static void PrintHelp()
     {
+        Console.WriteLine("gguf-launcher.exe                  (opens the native quick-pick window)");
         Console.WriteLine("gguf-launcher.exe model.gguf [llama-server args...]");
         Console.WriteLine("       gguf-launcher.exe -m model.gguf [llama-server args...]");
         Console.WriteLine("       gguf-launcher.exe --register | --unregister");
@@ -346,4 +295,13 @@ public static class Program
             // Ignore failures (redirected console)
         }
     }
+}
+
+public enum AppMode
+{
+    Ui,
+    Help,
+    Launch,
+    Register,
+    Unregister,
 }

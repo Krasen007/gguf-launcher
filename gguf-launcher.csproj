@@ -15,9 +15,9 @@
     <Description>A GGUF model launcher for Windows</Description>
     <ApplicationIcon>icon.ico</ApplicationIcon>
     <Icon>icon.ico</Icon>
-    <!-- Trim unused code for smaller binary -->
-    <PublishTrimmed>true</PublishTrimmed>
-    <TrimMode>full</TrimMode>
+    <!-- The native quick-pick UI uses Windows Forms, which does not support trimming. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <PublishTrimmed>false</PublishTrimmed>
     <!-- Note: PublishAot cannot be combined with PublishSingleFile -->
   </PropertyGroup>
 
@@ -31,7 +31,6 @@
     <DebugType>embedded</DebugType>
     <!-- Smaller by not loading globalization data -->
     <InvariantGlobalization>true</InvariantGlobalization>
-    <!-- Copy local NuGet packages for better trimming -->
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 

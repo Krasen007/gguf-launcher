@@ -3,10 +3,12 @@
 # GGUF Launcher
 
 Double-click a `.gguf` file in Windows Explorer and a llama.cpp server starts for it,
-with sensible defaults already set, and the web UI opens in your browser.
+with sensible defaults already set, and llama.cpp's web UI opens in your browser.
 
 ## What it does
 
+- Run it with no arguments to open the native quick-pick window: the last 10 models the
+  launcher opened, with their `.args` editable and one click to launch.
 - Finds `llama-server.exe` (next to this exe, on `PATH`, via `LLAMA_SERVER`, or in
   WinGet packages).
 - Detects companion files next to the model: `mmproj-*.gguf` for vision models and
@@ -24,9 +26,28 @@ with sensible defaults already set, and the web UI opens in your browser.
 dotnet publish -c Release -r win-x64 -o publish
 ```
 
-The output is a single self-contained `GgufLauncher.exe`.
+The output is a single self-contained `GgufLauncher.exe`. Windows Forms does not support
+trimming, so the build is untrimmed and the exe is larger than the earlier browser-UI build.
 
 ## Use
+
+Start the native quick-pick window (no arguments):
+
+```powershell
+GgufLauncher.exe
+```
+
+The window lists the last 10 models the launcher opened, most recent first. Selecting one
+shows its `<model-name>.args` (or a generated preview when the file does not exist yet), lets
+you edit and save it, and launches the model with the normal headless flow in a new console
+window. Use `Save & launch` to launch exactly what is in the editor, and `Ctrl+S` to save.
+The list is stored in `%LOCALAPPDATA%\GgufLauncher\recent-models.json`.
+
+Opening a `.gguf` file (or passing a model path) never shows this window; it keeps the
+headless console behavior below. The only side effect is that the model is recorded in the
+recent list.
+
+Launch a model directly:
 
 ```powershell
 GgufLauncher.exe model.gguf

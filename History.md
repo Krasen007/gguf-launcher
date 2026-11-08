@@ -69,3 +69,48 @@ apply and the launcher adds nothing. `--alias` is never added, in either case. T
 URL and health check follow the effective host/port, mapping wildcard binds to loopback.
 
 Test: `tests/ServerDefaultsTests.cs`
+
+## 2026-11-08 - quick-pick UI for the last 10 models [SUPERSEDED]
+
+Request:
+
+> add UI to the app when started, it should display the last run models for quick pick, if i start the gguf-launcher.exe it should open the UI, inside it should be a list of the last 10 models that the user opened, when i click on a model it should show the .args and it should be possible to edit. in any other case when i just open a .gguf file in a folder i should keep the exact behaviour as now, no gui etc.
+
+Behavior added: starting the exe with no arguments starts a loopback UI server and opens it
+in the default browser. It lists the last 10 models the launcher opened (most recent first)
+from `%LOCALAPPDATA%\GgufLauncher\recent-models.json`, shows each model's `<model-name>.args`
+for editing (a generated preview when the file is absent), and can save and launch the model
+through the normal headless path. Opening a `.gguf` file never starts the UI; the only new
+side effect there is recording the model in the recent list. `--help`, `--register` and
+`--unregister` are unchanged.
+
+Test: `tests/LauncherUiTests.cs`
+
+Superseded: the browser UI was replaced by a native Windows Forms window. The quick-pick
+behavior, recents file, `.args` preview/editing, and headless `.gguf` launch remain.
+
+## 2026-11-08 - native Windows quick-pick window
+
+Request:
+
+> i feel webui is not the best, this is a c# app, cant we use some simple windows interface
+
+Behavior change: starting the exe with no arguments opens a native Windows Forms window
+instead of a loopback browser UI. It lists the same last 10 models, shows and saves each
+model's `<model-name>.args` (including the generated preview when absent), and launches a
+model through the normal headless process. Opening a `.gguf` still never starts a window;
+it records the model and runs the unchanged console flow. Windows Forms does not support
+trimming, so `PublishTrimmed` is now false and the published exe is larger.
+
+Test: `tests/NativeUiTests.cs`
+
+## 2026-11-08 - continue native UI implementation
+
+Request:
+
+> Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed.
+
+Action: continued the native UI swap, including the no-argument UI route and the unchanged
+`.gguf` headless route.
+
+Test: `tests/ContinueWorkTests.cs`
