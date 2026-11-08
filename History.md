@@ -262,3 +262,24 @@ after the server launches. In the browser-opening flow around `new Uri(url)`, sk
 browser when URI parsing fails while allowing the server process to start and continue normally.
 
 Test: `tests/ProgramStartupReviewTests.cs`
+
+
+## 2026-11-08 - format args for the .args file
+
+Request:
+
+> i want to implement something like this for the UI of the app
+> (JS: replace backslash-before-newline with a space, collapse extra whitespace, trim)
+> the idea is .args file to parse the bash format into windows cmd format
+> or maybe if i paste this into the UI to convert it to the normal format
+
+Refinement: Windows CMD caret (`^`) continuations do not work, because the launcher's .args
+reader tokenizes each line independently and would pass `^` as a literal argument to
+llama-server. The quick-pick window's args editor gains a "Format args" button that joins
+each bash `\` continuation onto the previous line, collapses extra whitespace, and puts
+every flag (with its values) on its own row. Comment lines are preserved, regular line breaks
+are kept, and no `^` characters are emitted. The result stays multi-line and each line is a
+valid, independently-tokenized .args line. Formatted text is marked dirty and saved like any
+other edit. The earlier "Copy to clipboard" button was removed.
+
+Test: `tests/ArgsConverterTests.cs`

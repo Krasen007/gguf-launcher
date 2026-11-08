@@ -29,6 +29,7 @@ public sealed class LauncherForm : Form
     private readonly Button _saveLaunchButton = new();
     private readonly Button _loadButton = new();
     private readonly Button _refreshButton = new();
+    private readonly Button _convertButton = new();
     private readonly System.Windows.Forms.Timer _refreshTimer = new();
 
     private readonly Font _boldFont = BoldFont();
@@ -465,11 +466,13 @@ public sealed class LauncherForm : Form
 
         ConfigureButton(_reloadButton, "Reload");
         ConfigureButton(_saveButton, "Save");
+        ConfigureButton(_convertButton, "Format args");
         ConfigureButton(_launchButton, "Launch");
         ConfigureButton(_saveLaunchButton, "Save & launch");
 
         _reloadButton.Click += (_, _) => ReloadCurrent();
         _saveButton.Click += (_, _) => SaveCurrent();
+        _convertButton.Click += OnFormatArgsClick;
         _launchButton.Click += (_, _) => LaunchCurrent();
         _saveLaunchButton.Click += (_, _) =>
         {
@@ -481,6 +484,7 @@ public sealed class LauncherForm : Form
 
         actions.Controls.Add(_reloadButton);
         actions.Controls.Add(_saveButton);
+        actions.Controls.Add(_convertButton);
         actions.Controls.Add(_launchButton);
         actions.Controls.Add(_saveLaunchButton);
 
@@ -623,6 +627,7 @@ public sealed class LauncherForm : Form
 
         _dirty = true;
         UpdateArgumentNote();
+        UpdateActionState();
         SetStatus("Unsaved changes.");
     }
 
@@ -725,6 +730,38 @@ public sealed class LauncherForm : Form
         UpdateActionState();
         SetStatus("Saved " + _currentArgs.ArgsPath, success: true);
         return true;
+    }
+
+    private void OnFormatArgsClick(object? sender, EventArgs e)
+    {
+        if (_current is null || _currentArgs is null)
+        {
+            return;
+        }
+
+        string formatted = ArgsConverter.FormatArgs(_argsEditor.Text);
+        if (formatted.Length == 0)
+        {
+            SetStatus("Nothing to format.");
+            return;
+        }
+
+        if (formatted == _argsEditor.Text)
+        {
+            SetStatus("Args already formatted.");
+            return;
+        }
+
+        _loadingEditor = true;
+        _argsEditor.Text = formatted;
+        _argsEditor.SelectionStart = 0;
+        _argsEditor.SelectionLength = 0;
+        _loadingEditor = false;
+
+        _dirty = true;
+        UpdateArgumentNote();
+        UpdateActionState();
+        SetStatus("Args formatted: one flag per row.", success: true);
     }
 
     private void ReloadCurrent()
@@ -897,6 +934,9 @@ public sealed class LauncherForm : Form
         _saveLaunchButton.Enabled = hasModel;
         _launchButton.Enabled = hasModel && _current!.Exists;
         _argsEditor.ReadOnly = !hasModel;
+
+        bool hasText = hasModel && _argsEditor.Text.Length > 0;
+        _convertButton.Enabled = hasText;
     }
 
     private void SetStatus(string message, bool error = false, bool success = false)
