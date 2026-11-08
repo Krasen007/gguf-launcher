@@ -52,7 +52,7 @@ public static class FileAssociation
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[launcher] registry write failed: {ex.Message}");
+            Log.Warn($"registry write failed: {ex.Message}");
         }
     }
 
@@ -75,7 +75,7 @@ public static class FileAssociation
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[launcher] registry remove failed: {ex.Message}");
+            Log.Warn($"registry remove failed: {ex.Message}");
         }
     }
 
@@ -88,7 +88,7 @@ public static class FileAssociation
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[launcher] shell notify failed: {ex.Message}");
+            Log.Warn($"shell notify failed: {ex.Message}");
         }
     }
 

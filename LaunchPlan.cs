@@ -84,10 +84,7 @@ public static class LaunchPlanner
         // Merge all args sources
         List<string> merged = LauncherArgs.Merge(exeDir, modelFullPath, extraArgs);
 
-        // --no-browser is a launcher-only flag: detect it before stripping it from the
-        // args forwarded to llama-server.
-        bool noBrowser = LauncherArgs.HasNoBrowser(merged);
-        List<string> serverArgs = LauncherArgs.FilterBrowserFlag(merged);
+        (bool noBrowser, List<string> serverArgs) = LauncherArgs.SplitLauncherFlags(merged);
 
         finalArgs.AddRange(LauncherArgs.ServerDefaultArgs(hasPerModelArgs));
 

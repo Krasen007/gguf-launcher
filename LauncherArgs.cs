@@ -46,8 +46,6 @@ public static class LauncherArgs
         // Command line extras
         args.AddRange(extraArgs);
 
-        // NOTE: do NOT strip --no-browser here. Program.Main needs to detect it before the
-        // launcher-only flag is removed from the args forwarded to llama-server.
         return args;
     }
 
@@ -83,12 +81,33 @@ public static class LauncherArgs
                 result.AddRange(TokenizeArgsLine(trimmed));
             }
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Ignore unreadable args files
+            Log.Warn($"could not read args file {path}: {ex.Message}");
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Removes the launcher-only --no-browser flag from the merged arguments and reports
+    /// whether it was present. One pass keeps detection and stripping from drifting apart;
+    /// the match is exact, so variants such as --no-browser=true stay in the server args.
+    /// </summary>
+    public static (bool NoBrowser, List<string> ServerArgs) SplitLauncherFlags(List<string> args)
+    {
+        bool noBrowser = false;
+        List<string> serverArgs = [];
+        foreach (string arg in args)
+        {
+            if (arg == "--no-browser")
+            {
+                noBrowser = true;
+                continue;
+            }
+            serverArgs.Add(arg);
+        }
+        return (noBrowser, serverArgs);
     }
 
     /// <summary>
@@ -96,16 +115,7 @@ public static class LauncherArgs
     /// </summary>
     public static List<string> FilterBrowserFlag(List<string> args)
     {
-        List<string> filtered = [];
-        foreach (string arg in args)
-        {
-            if (arg == "--no-browser")
-            {
-                continue;
-            }
-            filtered.Add(arg);
-        }
-        return filtered;
+        return SplitLauncherFlags(args).ServerArgs;
     }
 
     /// <summary>
@@ -131,7 +141,7 @@ public static class LauncherArgs
     /// </summary>
     public static bool HasNoBrowser(List<string> args)
     {
-        return args.Contains("--no-browser");
+        return SplitLauncherFlags(args).NoBrowser;
     }
 
     /// <summary>

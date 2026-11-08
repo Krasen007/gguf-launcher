@@ -171,3 +171,71 @@ launcher writes have a specific note, unknown flags are reported as passed throu
 llama-server unchanged, and comments or blank lines show the hint text.
 
 Test: `tests/ArgumentInfoNoteTests.cs`
+
+## 2026-11-08 - liveness-aware health poll and narrower failure handling
+
+Request:
+
+> Statement 2: the 15-minute health poll
+>
+> The audit focuses on the wrong thing. Whether the deadline is 15 minutes or 5 matters less than the fact that the poller doesn’t know whether llama-server is still alive. If the process exits in the first few seconds (bad model path, port already in use, out of VRAM), the loop keeps polling for the full 15 minutes. Worse, if something else is already listening on that port and returns 200 on /health, the browser opens on the wrong server.
+>
+> Better options:
+>
+> Pass the Process (or a CancellationToken cancelled on exit and on Ctrl+C) into the loop and stop when the server exits. Then the deadline can stay generous, or become a safety net.
+> Optionally print one “still waiting for server…” line after about 60 seconds.
+> Remove the reported flag. The only code path that sets it immediately returns, so it can never suppress anything.
+> Build the URL with new Uri(baseUri, "health") rather than url + "health", which silently depends on a trailing slash.
+>
+> Fire-and-forget is fine here, since nothing can escape the method (the inner Process.Start has its own try, and the outer catch is bare). Also, “no UI indication” is overstated if the console window is visible, because llama-server prints its own loading output. It’s only true for the double-click case.
+>
+> Statement 3: the ~1000-line LauncherForm
+>
+> I agree with the audit’s conclusion: leave it. For a single-window WinForms app, a large form is normal, and the real testability work (LauncherUiModel, 62 tests) is already done. I wouldn’t introduce MVP or MVVM ceremony.
+>
+> If you do touch it, extract only the cheap, obvious seams:
+>
+> UpdateArgumentNote() computes help text from the caret line. That’s pure logic, and it belongs in the model or its own class, where it can be tested.
+> The color and font palette can move to a small static class.
+>
+> The things to watch are the _loadingEditor and _suppressSelection reentrancy flags. They’re a common sign that event-driven state is getting tangled. If a third one shows up, that’s the signal to restructure. Also, “validation” here is mostly dirty-state guarding, so don’t read it as a real validation layer.
+>
+> Statement 4: the --no-browser journey
+>
+> I’d push back on the “intentionally spread across four functions” framing. The flag really makes two moves, detect and strip, both called back to back in one place (LaunchPlanner.Create). The sequencing constraint (“don’t strip it in Merge, or you can’t detect it”) is a temporal coupling guarded only by a code comment, which is a mild smell.
+>
+> A simpler shape is a single function that returns both results:
+>
+> csharp
+> (bool NoBrowser, List<string> ServerArgs) SplitLauncherFlags(List<string> merged)
+>
+> That removes the ordering trap and the NOTE comment. It’s low priority, though: it works, it’s tested, and it’s contained. Also check what happens with variants like --no-browser=true or different casing, since the match is exact.
+>
+> Statement 5: swallowed exceptions
+>
+> The audit lumps together things that deserve different treatment.
+>
+> Not actually swallowed (boundaries 8 and 9): wrapping errors into InvalidOperationException and routing failures to the status bar is good practice. These are counterexamples to the thesis.
+>
+> Fine as-is (5, 6): Kill-on-already-exited and console encoding are classic benign cases. I’d narrow the catches (InvalidOperationException for Kill, IOException for encoding), but it’s cosmetic.
+>
+> Worth fixing:
+>
+> Boundary 7 (args-file read): this is the one with real user impact. If the user’s .args file is locked or unreadable, the server silently launches with different arguments than they configured. At minimum, log a warning. It also catches only IOException, while boundaries 1 and 2 also catch UnauthorizedAccessException, which is not a subclass of IOException. So a permission error here would crash instead of degrading. That inconsistency is probably unintentional.
+> Boundary 4 (health poll): the bare catch doesn’t just hide “not ready yet”. It also hides real bugs, like a malformed URI, for the full 15 minutes. Catch HttpRequestException and TaskCanceledException only, so programming errors surface.
+>
+> The highest-value single change: the audit correctly notes that console output is invisible on double-click, but the fix doesn’t need to be per-boundary. Add one tiny Log.Warn(...) helper that writes to the console and to a file (e.g. %LOCALAPPDATA%\gguf-launcher\launcher.log), and route the existing Console.Error.WriteLine("[launcher] ...") calls through it. That fixes the silent-degradation cost across the board without changing the “just works quietly” philosophy. lets implement the suggestions, defer writing to file .log for now
+
+Behavior change: the `/health` wait moved to `ServerReadiness` and follows the server
+process. It stops when the process exits, on Ctrl+C, after the browser opens, or at the
+15-minute safety-net deadline, and prints one `still waiting` line after 60 seconds. The
+health URL is built with `new Uri(baseUri, "health")`, and the `reported` flag is gone.
+Launcher-only flag detection and stripping are one `SplitLauncherFlags` pass; the exact
+match is preserved, so variants such as `--no-browser=true` stay in the server args. The
+args-file read now warns instead of failing silently and also catches
+`UnauthorizedAccessException`; the health poll catches only `HttpRequestException` and
+request timeouts; the Kill and console-encoding catches are narrowed. `Log.Warn` centralises
+launcher diagnostics and currently writes to the console only (file logging deferred).
+`ArgumentNotes.DescribeLine` and `LauncherPalette` were extracted from the form.
+
+Test: `tests/AuditSuggestionsTests.cs`

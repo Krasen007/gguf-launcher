@@ -42,7 +42,7 @@ public static class Program
         {
             if (args.Length < 2)
             {
-                Console.Error.WriteLine("[launcher] missing model path after -m");
+                Log.Warn("missing model path after -m");
                 PrintHelp();
                 return 1;
             }
@@ -58,7 +58,7 @@ public static class Program
         // Validate model exists
         if (!File.Exists(modelPath))
         {
-            Console.Error.WriteLine($"[launcher] model not found: {modelPath}");
+            Log.Warn($"model not found: {modelPath}");
             return 1;
         }
 
@@ -70,8 +70,8 @@ public static class Program
         string? server = LlamaServerLocator.Find(exeDir);
         if (server is null)
         {
-            Console.Error.WriteLine("[launcher] llama-server.exe not found.");
-            Console.Error.WriteLine("[launcher] put it next to this exe, on PATH, or set LLAMA_SERVER.");
+            Log.Warn("llama-server.exe not found.");
+            Log.Warn("put it next to this exe, on PATH, or set LLAMA_SERVER.");
             return 1;
         }
 
@@ -91,20 +91,15 @@ public static class Program
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Console.Error.WriteLine($"[launcher] could not write args file: {ex.Message}");
+            Log.Warn($"could not write args file: {ex.Message}");
         }
 
         // Print command
         Console.WriteLine($"[launcher] {server} {string.Join(" ", finalArgs)}");
         Console.WriteLine();
 
-        // Open browser if requested
-        if (!noBrowser)
-        {
-            _ = OpenWhenReadyAsync(url);
-        }
-
         // Run llama-server directly, forwarding Ctrl+C so the server shuts down cleanly.
+        using CancellationTokenSource shutdown = new();
         try
         {
             var process = new System.Diagnostics.Process
@@ -112,7 +107,6 @@ public static class Program
                 StartInfo = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = server,
-                    // Arguments = string.Join(" ", finalArgs.Select(a => $"\"{a}\"")),
                     WorkingDirectory = modelDir,
                     UseShellExecute = false,
                 }
@@ -127,18 +121,33 @@ public static class Program
             Console.CancelKeyPress += (_, e) =>
             {
                 e.Cancel = true;
+                shutdown.Cancel();
                 try
                 {
                     process.Kill();
                 }
-                catch
+                catch (InvalidOperationException)
                 {
                     // Process may have already exited.
                 }
             };
 
             process.Start();
+
+            // Fire-and-forget: the task ends on success, server exit, or cancellation, and
+            // every expected failure is handled inside ServerReadiness.
+            if (!noBrowser)
+            {
+                _ = ServerReadiness.OpenWhenReadyAsync(
+                    new Uri(url),
+                    () => !process.HasExited,
+                    TryOpenBrowser,
+                    Log.Warn,
+                    cancellationToken: shutdown.Token);
+            }
+
             process.WaitForExit();
+            shutdown.Cancel();
 
             if (process.ExitCode != 0)
             {
@@ -149,7 +158,7 @@ public static class Program
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[launcher] failed to start: {ex.Message}");
+            Log.Warn($"failed to start: {ex.Message}");
             return 1;
         }
     }
@@ -211,7 +220,7 @@ public static class Program
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Console.Error.WriteLine($"[launcher] could not update recent models: {ex.Message}");
+            Log.Warn($"could not update recent models: {ex.Message}");
         }
     }
 
@@ -231,40 +240,20 @@ public static class Program
         });
     }
 
-    private static async Task OpenWhenReadyAsync(string url)
+    private static bool TryOpenBrowser(Uri uri)
     {
-        using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(2) };
-        var deadline = DateTime.UtcNow.AddMinutes(15);
-        bool reported = false;
-
-        while (DateTime.UtcNow < deadline)
+        try
         {
-            try
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri)
             {
-                using var response = await client.GetAsync(url + "health");
-                if (response.IsSuccessStatusCode)
-                {
-                    try
-                    {
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
-                    }
-                    catch (Exception ex)
-                    {
-                        if (!reported)
-                        {
-                            Console.Error.WriteLine($"[launcher] could not open browser: {ex.Message}");
-                            reported = true;
-                        }
-                    }
-                    return;
-                }
-            }
-            catch
-            {
-                // Not ready yet
-            }
-
-            await Task.Delay(500);
+                UseShellExecute = true,
+            });
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"could not open browser: {ex.Message}");
+            return false;
         }
     }
 
@@ -290,9 +279,9 @@ public static class Program
         {
             Console.OutputEncoding = Encoding.UTF8;
         }
-        catch
+        catch (IOException)
         {
-            // Ignore failures (redirected console)
+            // Redirected console handle; output encoding does not apply.
         }
     }
 }

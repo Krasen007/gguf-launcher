@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows.Forms;
+using static GgufLauncher.LauncherPalette;
 
 namespace GgufLauncher;
 
@@ -10,14 +11,6 @@ namespace GgufLauncher;
 /// </summary>
 public sealed class LauncherForm : Form
 {
-    private static readonly Color HeaderBack = Color.FromArgb(247, 248, 250);
-    private static readonly Color SidebarBack = Color.FromArgb(250, 250, 251);
-    private static readonly Color MutedColor = Color.FromArgb(103, 110, 119);
-    private static readonly Color TextColor = Color.FromArgb(28, 32, 36);
-    private static readonly Color AccentColor = Color.FromArgb(31, 111, 235);
-    private static readonly Color SuccessColor = Color.FromArgb(30, 126, 78);
-    private static readonly Color DangerColor = Color.FromArgb(190, 45, 52);
-    private static readonly Color BadgeBack = Color.FromArgb(232, 242, 255);
     private const string ArgumentNoteHint = "Place the cursor on an argument line to see what it does.";
 
     private readonly LauncherUiModel _model;
@@ -38,9 +31,9 @@ public sealed class LauncherForm : Form
     private readonly Button _refreshButton = new();
     private readonly System.Windows.Forms.Timer _refreshTimer = new();
 
-    private readonly Font _boldFont = new("Segoe UI", 9.5F, FontStyle.Bold);
-    private readonly Font _smallFont = new("Segoe UI", 8.25F);
-    private readonly Font _monoFont = new("Consolas", 8.25F);
+    private readonly Font _boldFont = BoldFont();
+    private readonly Font _smallFont = SmallFont();
+    private readonly Font _monoFont = MonoFont();
 
     private List<LauncherModelEntry> _models = [];
     private LauncherModelEntry? _current;
@@ -57,7 +50,7 @@ public sealed class LauncherForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(900, 560);
         ClientSize = new Size(1160, 700);
-        Font = new Font("Segoe UI", 9F);
+        Font = FormFont();
         AutoScaleMode = AutoScaleMode.Dpi;
         KeyPreview = true;
 
@@ -139,7 +132,7 @@ public sealed class LauncherForm : Form
         Label title = new()
         {
             Text = "GGUF Launcher",
-            Font = new Font("Segoe UI", 13.5F, FontStyle.Bold),
+            Font = TitleFont(),
             ForeColor = TextColor,
             AutoSize = true,
             Margin = Padding.Empty,
@@ -307,7 +300,7 @@ public sealed class LauncherForm : Form
         _argsEditor.ScrollBars = ScrollBars.Both;
         _argsEditor.WordWrap = false;
         _argsEditor.AcceptsTab = true;
-        _argsEditor.Font = new Font("Consolas", 9.5F);
+        _argsEditor.Font = EditorFont();
         _argsEditor.BorderStyle = BorderStyle.FixedSingle;
         _argsEditor.BackColor = Color.White;
         _argsEditor.ForeColor = TextColor;
@@ -341,7 +334,7 @@ public sealed class LauncherForm : Form
         _modelName.Dock = DockStyle.Fill;
         _modelName.AutoEllipsis = true;
         _modelName.TextAlign = ContentAlignment.BottomLeft;
-        _modelName.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
+        _modelName.Font = ModelTitleFont();
         _modelName.ForeColor = TextColor;
         _modelName.Text = "Select a model";
         _modelName.Margin = Padding.Empty;
@@ -517,7 +510,7 @@ public sealed class LauncherForm : Form
         bool selected = (e.State & DrawItemState.Selected) != 0;
         Color background = selected ? AccentColor : SidebarBack;
         Color nameColor = selected ? Color.White : (entry.Exists ? TextColor : MutedColor);
-        Color detailColor = selected ? Color.FromArgb(220, 233, 250) : MutedColor;
+        Color detailColor = selected ? SelectedDetailColor : MutedColor;
 
         using (SolidBrush brush = new(background))
         {
@@ -526,7 +519,7 @@ public sealed class LauncherForm : Form
 
         if (selected)
         {
-            using SolidBrush accent = new(Color.FromArgb(138, 180, 248));
+            using SolidBrush accent = new(SelectedAccentColor);
             e.Graphics.FillRectangle(accent, e.Bounds.Left, e.Bounds.Top + 9, 3, e.Bounds.Height - 18);
         }
 
@@ -573,7 +566,7 @@ public sealed class LauncherForm : Form
         if (state.Length > 0)
         {
             Color stateColor = selected
-                ? Color.FromArgb(255, 226, 226)
+                ? SelectedStateColor
                 : entry.Exists ? MutedColor : DangerColor;
             Rectangle stateRect = new(e.Bounds.Left + 14, e.Bounds.Top + 47, e.Bounds.Width - 28, 16);
             TextRenderer.DrawText(
@@ -916,8 +909,7 @@ public sealed class LauncherForm : Form
     {
         int index = charIndex ?? _argsEditor.SelectionStart;
         int line = _argsEditor.GetLineFromCharIndex(index);
-        string[] lines = _argsEditor.Lines;
-        string note = line >= 0 && line < lines.Length ? ArgumentNotes.Describe(lines[line]) : "";
+        string note = ArgumentNotes.DescribeLine(_argsEditor.Lines, line);
         _argumentNote.Text = note.Length == 0 ? ArgumentNoteHint : note;
     }
 

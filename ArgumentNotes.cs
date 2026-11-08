@@ -44,6 +44,20 @@ public static class ArgumentNotes
             : $"{flag}: {UnknownNote}";
     }
 
+    /// <summary>
+    /// Returns the note for one editor line by index, or an empty string when the index is
+    /// outside the document. Kept separate from the form so the caret-to-note mapping is pure.
+    /// </summary>
+    public static string DescribeLine(IReadOnlyList<string> lines, int lineIndex)
+    {
+        if (lineIndex < 0 || lineIndex >= lines.Count)
+        {
+            return "";
+        }
+
+        return Describe(lines[lineIndex]);
+    }
+
     private static Dictionary<string, string> Build()
     {
         Dictionary<string, string> notes = new(StringComparer.OrdinalIgnoreCase);
