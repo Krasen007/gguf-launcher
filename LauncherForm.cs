@@ -571,7 +571,7 @@ public sealed class LauncherForm : Form
         SetStatus("Unsaved changes.");
     }
 
-    private void OpenModel(LauncherModelEntry entry)
+    private bool OpenModel(LauncherModelEntry entry)
     {
         LauncherArgsContent args;
         try
@@ -582,7 +582,7 @@ public sealed class LauncherForm : Form
         {
             SetStatus("Could not load arguments: " + ex.Message, error: true);
             RestoreSelection();
-            return;
+            return false;
         }
 
         _loadingEditor = true;
@@ -605,6 +605,8 @@ public sealed class LauncherForm : Form
         {
             SetStatus("The model file no longer exists; launching is disabled.", error: true);
         }
+
+        return true;
     }
 
     private void ClearEditor(bool noModels)
@@ -680,8 +682,7 @@ public sealed class LauncherForm : Form
             return;
         }
 
-        OpenModel(_current);
-        if (_current is not null && _current.Exists)
+        if (OpenModel(_current) && _current is not null && _current.Exists)
         {
             SetStatus("Reloaded from disk.", success: true);
         }

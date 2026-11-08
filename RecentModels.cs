@@ -67,7 +67,7 @@ public sealed class RecentModelStore
             }
 
             return models
-                .Where(m => !string.IsNullOrWhiteSpace(m.Path))
+                .Where(m => m is not null && !string.IsNullOrWhiteSpace(m.Path))
                 .Take(MaxCount)
                 .ToList();
         }

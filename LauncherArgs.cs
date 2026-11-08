@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace GgufLauncher;
 
 /// <summary>
@@ -78,9 +80,7 @@ public static class LauncherArgs
                     trimmed = trimmed[1..];
                 }
 
-                // Split on whitespace (handles multi-flag lines)
-                string[] parts = trimmed.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-                result.AddRange(parts);
+                result.AddRange(TokenizeArgsLine(trimmed));
             }
         }
         catch (IOException)
@@ -171,7 +171,7 @@ public static class LauncherArgs
     /// </summary>
     public static List<string> Normalize(IReadOnlyList<string> args)
     {
-        List<(string? Flag, string? Value)> units = ParseUnits(args);
+        List<(string? Flag, string[] Values)> units = ParseUnits(args);
 
         Dictionary<string, int> lastIndex = new(StringComparer.Ordinal);
         for (int i = 0; i < units.Count; i++)
@@ -183,12 +183,32 @@ public static class LauncherArgs
         }
 
         List<string> result = [];
+        bool wroteLayerRanges = false;
         for (int i = 0; i < units.Count; i++)
         {
-            (string? flag, string? value) = units[i];
+            (string? flag, string[] values) = units[i];
             if (flag is null)
             {
-                result.Add(value!);
+                result.AddRange(values);
+                continue;
+            }
+
+            if (flag == "--control-vector-layer-range")
+            {
+                if (!wroteLayerRanges)
+                {
+                    foreach ((string? rangeFlag, string[] rangeValues) in units)
+                    {
+                        if (rangeFlag == flag)
+                        {
+                            result.Add(flag);
+                            result.AddRange(rangeValues);
+                        }
+                    }
+
+                    wroteLayerRanges = true;
+                }
+
                 continue;
             }
 
@@ -198,10 +218,7 @@ public static class LauncherArgs
             }
 
             result.Add(flag);
-            if (value is not null)
-            {
-                result.Add(value);
-            }
+            result.AddRange(values);
         }
 
         return result;
@@ -243,11 +260,11 @@ public static class LauncherArgs
             "",
         ];
 
-        foreach ((string? flag, string? value) in ParseUnits(Normalize(finalArgs)))
+        foreach ((string? flag, string[] values) in ParseUnits(Normalize(finalArgs)))
         {
             if (flag is null)
             {
-                lines.Add(value!);
+                lines.Add(RenderArgsValue(values[0]));
             }
             else if (flag == "-m" || flag == "--model")
             {
@@ -255,7 +272,9 @@ public static class LauncherArgs
             }
             else
             {
-                lines.Add(value is null ? flag : $"{flag} {value}");
+                lines.Add(values.Length == 0
+                    ? flag
+                    : $"{flag} {string.Join(" ", values.Select(RenderArgsValue))}");
             }
         }
 
@@ -267,29 +286,86 @@ public static class LauncherArgs
     /// when it starts with '-' followed by a letter or a second '-', so negative numbers
     /// stay attached to their flag as values.
     /// </summary>
-    private static List<(string? Flag, string? Value)> ParseUnits(IReadOnlyList<string> args)
+    private static List<(string? Flag, string[] Values)> ParseUnits(IReadOnlyList<string> args)
     {
-        List<(string?, string?)> units = [];
+        List<(string?, string[])> units = [];
         for (int i = 0; i < args.Count; i++)
         {
             string token = args[i];
             if (!IsFlag(token))
             {
-                units.Add((null, token));
+                units.Add((null, [token]));
                 continue;
             }
 
-            string? value = null;
-            if (i + 1 < args.Count && !IsFlag(args[i + 1]))
+            List<string> values = [];
+            int valueCount = ValueCounts.GetValueOrDefault(token, 1);
+            while (valueCount > 0 && i + 1 < args.Count && !IsFlag(args[i + 1]))
             {
-                value = args[i + 1];
+                values.Add(args[i + 1]);
                 i++;
+                valueCount--;
             }
 
-            units.Add((token, value));
+            units.Add((token, values.ToArray()));
         }
 
         return units;
+    }
+
+    private static List<string> TokenizeArgsLine(string line)
+    {
+        List<string> parts = [];
+        StringBuilder token = new();
+        bool inQuotes = false;
+        bool tokenStarted = false;
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            char current = line[i];
+            if (inQuotes && current == '\\' && i + 1 < line.Length &&
+                line[i + 1] is '\\' or '"')
+            {
+                token.Append(line[++i]);
+                tokenStarted = true;
+            }
+            else if (current == '"')
+            {
+                inQuotes = !inQuotes;
+                tokenStarted = true;
+            }
+            else if (char.IsWhiteSpace(current) && !inQuotes)
+            {
+                if (tokenStarted)
+                {
+                    parts.Add(token.ToString());
+                    token.Clear();
+                    tokenStarted = false;
+                }
+            }
+            else
+            {
+                token.Append(current);
+                tokenStarted = true;
+            }
+        }
+
+        if (tokenStarted)
+        {
+            parts.Add(token.ToString());
+        }
+
+        return parts;
+    }
+
+    private static string RenderArgsValue(string value)
+    {
+        if (!value.Any(char.IsWhiteSpace))
+        {
+            return value;
+        }
+
+        return "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
     }
 
     private static bool IsFlag(string token)
@@ -303,12 +379,24 @@ public static class LauncherArgs
     /// </summary>
     private static readonly HashSet<string> RepeatableFlags = new(StringComparer.Ordinal)
     {
+        "-l",
+        "-ot",
+        "-otd",
         "--lora",
         "--lora-scaled",
         "--control-vector",
         "--control-vector-scaled",
+        "--control-vector-layer-range",
         "--override-kv",
+        "--override-tensor",
+        "--override-tensor-draft",
+        "--spec-draft-override-tensor",
         "--logit-bias",
+    };
+
+    private static readonly Dictionary<string, int> ValueCounts = new(StringComparer.Ordinal)
+    {
+        ["--control-vector-layer-range"] = 2,
     };
 
     /// <summary>

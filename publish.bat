@@ -1,1 +1,1 @@
-dotnet publish f:\AI\repos\gguf-launcher\gguf-launcher.csproj -c Release -r win-x64 -o f:\AI\repos\gguf-launcher\publish --self-contained
+dotnet publish "%~dp0gguf-launcher.csproj" -c Release -r win-x64 -o "%~dp0publish" --self-contained

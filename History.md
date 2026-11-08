@@ -114,3 +114,29 @@ Action: continued the native UI swap, including the no-argument UI route and the
 `.gguf` headless route.
 
 Test: `tests/ContinueWorkTests.cs`
+
+## 2026-11-08 - preserve args-file values and reload state [SUPERSEDED]
+
+Request: Fix review findings covering quoted argument values, repeatable/multi-value
+llama-server flags, reload success reporting, and null entries in recent-model storage.
+
+Behavior change: Values containing whitespace are quoted and read as one token;
+normalization preserves repeated tensor overrides and complete two-value control-vector
+layer ranges; reload reports success only after arguments load; invalid null recents are
+filtered before path validation.
+
+Test: `tests/ReviewFixesTests.cs`
+
+Superseded only for range ordering: repeated `--control-vector-layer-range` units are
+grouped together while preserving each occurrence and its two values.
+
+## 2026-11-08 - group repeated layer ranges
+
+Request: Group repeated `--control-vector-layer-range` arguments together instead of
+leaving them interleaved with arguments from their respective sources.
+
+Behavior change: `Normalize` groups all repeated layer-range units at the first range
+position while keeping every range and both of its values in source order. Other argument
+ordering remains unchanged.
+
+Test: `tests/ReviewFixesOrderingTests.cs`
