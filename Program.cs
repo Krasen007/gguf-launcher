@@ -60,7 +60,6 @@ public static class Program
 
         string modelFullPath = Path.GetFullPath(modelPath);
         string modelDir = Path.GetDirectoryName(modelFullPath) ?? ".";
-        string modelStem = Path.GetFileNameWithoutExtension(modelFullPath);
 
         // Find llama-server
         string exeDir = AppContext.BaseDirectory;
@@ -134,52 +133,27 @@ public static class Program
         bool noBrowser = LauncherArgs.HasNoBrowser(merged);
         List<string> serverArgs = LauncherArgs.FilterBrowserFlag(merged);
 
-        // Add host/port - default to 0.0.0.0 and 8080, allow overrides from args
-        string serverHost = "0.0.0.0";
-        string port = "8080";
+        finalArgs.AddRange(LauncherArgs.ServerDefaultArgs(hasPerModelArgs));
 
-        // Check args for explicit values (later flags win)
-        string? mergedHost = LauncherArgs.GetLastValue(serverArgs, "--host");
-        string? mergedPort = LauncherArgs.GetLastValue(serverArgs, "--port");
-
-        if (!string.IsNullOrEmpty(mergedHost))
-            serverHost = mergedHost;
-        if (!string.IsNullOrEmpty(mergedPort))
-            port = mergedPort;
-
-        // Map wildcard bind addresses to loopback for browser URL only
-        string browserHost = serverHost;
-        if (browserHost == "0.0.0.0" || browserHost == "::" || string.IsNullOrEmpty(browserHost))
-        {
-            browserHost = "127.0.0.1";
-        }
-
-        finalArgs.Add("--host");
-        finalArgs.Add(serverHost);
-        finalArgs.Add("--port");
-        finalArgs.Add(port);
-        finalArgs.Add("--alias");
-        finalArgs.Add(modelStem);
-
-        // Add merged args (but keep host/port/alias/-m if explicitly provided - they're added above)
         for (int i = 0; i < serverArgs.Count; i++)
         {
             string arg = serverArgs[i];
-            // Skip duplicates - we already added these explicitly
-            if (arg == "--host" || arg == "--port" || arg == "--alias" || arg == "-m")
+            // -m is already added with the model path.
+            if (arg == "-m")
             {
                 if (i + 1 < serverArgs.Count && !serverArgs[i + 1].StartsWith('-'))
                 {
-                    i++; // skip the value too
+                    i++;
                 }
                 continue;
             }
             finalArgs.Add(arg);
         }
 
-        string url = $"http://{browserHost}:{port}/";
-
         finalArgs = LauncherArgs.Normalize(finalArgs);
+
+        (string browserHost, string port) = LauncherArgs.BrowserEndpoint(finalArgs);
+        string url = $"http://{browserHost}:{port}/";
 
         try
         {

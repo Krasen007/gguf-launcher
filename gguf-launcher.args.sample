@@ -1,7 +1,7 @@
 # Global overrides for gguf-launcher. Copy to gguf-launcher.args next to the exe
 # and edit. One or more flags per line; lines starting with # are comments.
 
-# Bind only to this machine (default is 0.0.0.0)
+# Bind only to this machine (the launcher's first-launch default is 0.0.0.0)
 # --host 127.0.0.1
 
 # Smaller context for a small GPU

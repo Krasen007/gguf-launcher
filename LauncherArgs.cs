@@ -135,6 +135,36 @@ public static class LauncherArgs
     }
 
     /// <summary>
+    /// Baked-in server binding used only when the model has no per-model args file yet.
+    /// Once `<model-name>.args` exists it is the complete argument set, so the launcher
+    /// adds nothing and llama-server's own defaults apply when host/port are absent.
+    /// </summary>
+    public static IReadOnlyList<string> ServerDefaultArgs(bool hasPerModelArgs)
+    {
+        return hasPerModelArgs ? [] : ["--host", "0.0.0.0", "--port", "8080"];
+    }
+
+    /// <summary>
+    /// Resolves where the browser should connect: the effective --host/--port from the
+    /// arguments, falling back to llama-server's defaults (127.0.0.1:8080). Wildcard bind
+    /// addresses are mapped to loopback so the browser can reach them.
+    /// </summary>
+    public static (string Host, string Port) BrowserEndpoint(List<string> args)
+    {
+        string? hostValue = GetLastValue(args, "--host");
+        string host = string.IsNullOrEmpty(hostValue) ? "127.0.0.1" : hostValue;
+        if (host is "0.0.0.0" or "::")
+        {
+            host = "127.0.0.1";
+        }
+
+        string? portValue = GetLastValue(args, "--port");
+        string port = string.IsNullOrEmpty(portValue) ? "8080" : portValue;
+
+        return (host, port);
+    }
+
+    /// <summary>
     /// Collapses repeated flags to their last occurrence, matching llama-server's
     /// "later wins" behavior. Repeatable flags (multiple LoRAs, etc.) keep every
     /// occurrence so no functionality is dropped.
@@ -196,7 +226,7 @@ public static class LauncherArgs
         [
             "# llama-server arguments for this model, written by gguf-launcher on first launch.",
             "# While this file exists it is the complete argument set: the launcher adds no",
-            "# defaults and no companion-file flags (only -m, --host, --port, --alias).",
+            "# defaults, no companion-file flags, and no server host/port/alias.",
             "# Edit freely - existing files are never overwritten. Delete it to regenerate.",
             "# One or more flags per line, '#' starts a comment.",
             "",

@@ -20,7 +20,7 @@ and are merged on later launches. Delete the file to regenerate it.
 
 Test: `tests/ArgsFileEditableTests.cs`
 
-## 2026-11-08 - existing .args must be authoritative
+## 2026-11-08 - existing .args must be authoritative [SUPERSEDED]
 
 Request:
 
@@ -34,3 +34,38 @@ it, so removing a line from the file removes the flag from the launch. The launc
 adds `-m` and, when the file does not set them, `--host`, `--port`, `--alias`.
 
 Test: `tests/ArgsFileAuthoritativeTests.cs`
+
+Superseded: the launcher must not add `--host`, `--port` or `--alias` either; llama-server's
+own defaults apply when they are absent. `tests/ArgsFileAuthoritativeTests.cs` still covers
+the merge precedence that remains in force.
+
+## 2026-11-08 - do not inject host/port/alias [SUPERSEDED]
+
+Request:
+
+> why is --host 0.0.0.0 --port 8080 --alias MiniCPM-V-4_7-1B-F16 always added ? its not in the .args file so it should use llama defaults like a localhost
+
+Behavior change: the launcher forwards only the arguments it gets from the args files and the
+command line. It no longer adds `--host`, `--port` or `--alias`, so llama-server's own
+defaults apply (127.0.0.1:8080) when they are absent. The browser URL and health check follow
+the effective `--host`/`--port`, falling back to 127.0.0.1:8080.
+
+Test: `tests/HostPortNotInjectedTests.cs`
+
+Superseded: the launcher's own binding default must still apply on the first launch (no
+per-model args file yet). `tests/ServerDefaultsTests.cs` replaces
+`tests/HostPortNotInjectedTests.cs`.
+
+## 2026-11-08 - binding default only until the args file exists
+
+Request:
+
+> you made a mistake, when there is no .args file load at 0.0.0.0 8080 but if there is .args file then follow exact what is inside so if no host or port then no
+
+Behavior change: `--host 0.0.0.0 --port 8080` is added only when the model has no
+`<model-name>.args` file. On that first launch the generated file records them, and from then
+on the file is the complete argument set: if it has no host/port, llama-server's own defaults
+apply and the launcher adds nothing. `--alias` is never added, in either case. The browser
+URL and health check follow the effective host/port, mapping wildcard binds to loopback.
+
+Test: `tests/ServerDefaultsTests.cs`

@@ -73,10 +73,16 @@ path), including the built-in defaults and the flags derived from companion file
 
 That file is never overwritten. While it exists it is the complete argument set for the
 model: the launcher adds neither the built-in defaults nor companion-file flags, so
-deleting a line actually removes that flag from the launch. It only adds `-m` and, when
-the file does not set them, `--host`, `--port` and `--alias`. Delete the file to have it
-regenerated with fresh defaults and detection. The global `gguf-launcher.args` next to
-the exe is never written by the launcher and still applies before the per-model file.
+deleting a line actually removes that flag from the launch. It only adds `-m`. Delete the
+file to have it regenerated with fresh defaults and detection. The global
+`gguf-launcher.args` next to the exe is never written by the launcher and still applies
+before the per-model file.
+
+The launcher adds `--host 0.0.0.0 --port 8080` only on that first launch, when there is no
+per-model `.args` file yet; the generated file records them. After that it adds nothing: if
+the file has no `--host`/`--port`, llama-server's own defaults apply (`127.0.0.1:8080`).
+`--alias` is never added. The browser URL and health check follow whichever host/port is
+effective, mapping wildcard binds to loopback.
 
 Example `gguf-launcher.args`:
 
@@ -89,9 +95,10 @@ Example `gguf-launcher.args`:
 
 ## Notes
 
-- The server binds to `0.0.0.0` by default, so the model is reachable from other
-  machines on the network. Pass `--host 127.0.0.1` (or put it in an `.args` file) to
-  keep it private to this machine.
+- Without a per-model `.args` file the launcher binds `0.0.0.0:8080`, so the model is
+  reachable from other machines on the network. Once the file exists it decides: with no
+  `--host` / `--port` there, llama-server's default `127.0.0.1:8080` applies. Add
+  `--host 127.0.0.1` to an args file to keep it private.
 - Windows 11 does not let applications set the "default app" hash, so the launcher
   registers the association but you may still need to pick it once in *Open with* /
   *Default apps*.
