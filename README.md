@@ -20,6 +20,8 @@ with sensible defaults already set, and llama.cpp's web UI opens in your browser
   set, so the launcher adds no defaults and re-detects no companion files.
 - Registers itself as the handler for `.gguf` files (per user, no administrator needed).
 
+![alt text](image.png)
+
 ## Build
 
 ```powershell
