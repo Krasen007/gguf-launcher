@@ -24,7 +24,6 @@ public sealed class LauncherForm : Form
     private readonly Label _argsBadge = new();
     private readonly Label _argumentNote = new();
     private readonly Label _status = new();
-    private readonly Button _launchButton = new();
     private readonly Button _saveLaunchButton = new();
     private readonly Button _loadButton = new();
 
@@ -402,11 +401,9 @@ public sealed class LauncherForm : Form
         };
 
         ConfigureButton(_loadButton, "Load model...");
-        ConfigureButton(_launchButton, "Launch");
         ConfigureButton(_saveLaunchButton, "Save & launch");
 
         _loadButton.Click += (_, _) => LoadModelFromDialog();
-        _launchButton.Click += (_, _) => LaunchCurrent();
         _saveLaunchButton.Click += (_, _) =>
         {
             if (SaveCurrent())
@@ -416,7 +413,6 @@ public sealed class LauncherForm : Form
         };
 
         actions.Controls.Add(_loadButton);
-        actions.Controls.Add(_launchButton);
         actions.Controls.Add(_saveLaunchButton);
 
         footer.Controls.Add(_status, 0, 0);
@@ -809,7 +805,6 @@ public sealed class LauncherForm : Form
     {
         bool hasModel = _current is not null && _currentArgs is not null;
         _saveLaunchButton.Enabled = hasModel;
-        _launchButton.Enabled = hasModel && _current!.Exists;
         _argsEditor.ReadOnly = !hasModel;
     }
 

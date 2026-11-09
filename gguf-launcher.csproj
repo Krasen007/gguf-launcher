@@ -11,20 +11,25 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <LangVersion>12</LangVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <Version>1.1.0</Version>
+    <Version>1.1.4</Version>
     <Description>A GGUF model launcher for Windows</Description>
     <ApplicationIcon>icon.ico</ApplicationIcon>
     <UseWindowsForms>true</UseWindowsForms>
-    <!-- WinForms is trim-compatible on .NET 6+. Partial mode trims only our app code and
-         preserves framework assemblies, avoiding WinForms trim warnings while cutting the
-         self-contained exe size. -->
+  </PropertyGroup>
+
+  <!-- Trimming -->
+  <PropertyGroup>
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>partial</TrimMode>
     <!-- Opt into WinForms trimming (SDK otherwise errors with NETSDK1175). -->
     <_SuppressWinFormsTrimError>true</_SuppressWinFormsTrimError>
-    <!-- Note: PublishAot cannot be combined with PublishSingleFile -->
+    <!-- FIX for TypeLoadException in Interop.UiaCore.UiaReturnRawElementProvider:
+         WinForms' UI Automation provider needs built-in COM interop, which the trimmer
+         disables by default. -->
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
   </PropertyGroup>
 
+  <!-- Single-file, self-contained publish -->
   <PropertyGroup>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
@@ -32,14 +37,30 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <DebugType>embedded</DebugType>
-    <!-- Smaller by not loading globalization data -->
     <InvariantGlobalization>true</InvariantGlobalization>
-    <!-- Pre-compiles assemblies to native code for faster startup on Windows (WinForms can't use Native AOT yet). -->
-    <PublishReadyToRun>true</PublishReadyToRun>
   </PropertyGroup>
+
+  <!-- Size reductions -->
+  <PropertyGroup>
+    <!-- ReadyToRun roughly doubles IL size; disabled for a smaller exe (slightly slower startup). -->
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <!-- No PDB embedded in the exe. -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <!-- Strip runtime features this app doesn't use. -->
+    <EventSourceSupport>false</EventSourceSupport>
+    <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+    <DebuggerSupport>false</DebuggerSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Keep the WinForms layer untouched by the trimmer. -->
+    <TrimmerRootAssembly Include="System.Windows.Forms" />
+    <TrimmerRootAssembly Include="System.Windows.Forms.Primitives" />
+  </ItemGroup>
 
   <ItemGroup>
     <Compile Remove="tests\**" />
   </ItemGroup>
+
 </Project>
