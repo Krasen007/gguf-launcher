@@ -28,9 +28,6 @@ with sensible defaults already set, and llama.cpp's web UI opens in your browser
 dotnet publish -c Release -r win-x64 -o publish
 ```
 
-The output is a single self-contained, trimmed `GgufLauncher.exe`. Trimming (partial mode)
-removes unused framework code, cutting the exe to roughly 44 MB (down from ~66 MB untrimmed).
-
 ## Use
 
 Start the native quick-pick window (no arguments):
@@ -104,12 +101,6 @@ file to have it regenerated with fresh defaults and detection. The global
 `gguf-launcher.args` next to the exe is never written by the launcher and still applies
 before the per-model file.
 
-The launcher adds `--host 0.0.0.0 --port 8080` only on that first launch, when there is no
-per-model `.args` file yet; the generated file records them. After that it adds nothing: if
-the file has no `--host`/`--port`, llama-server's own defaults apply (`127.0.0.1:8080`).
-`--alias` is never added. The browser URL and health check follow whichever host/port is
-effective, mapping wildcard binds to loopback.
-
 Example `gguf-launcher.args`:
 
 ```
@@ -121,14 +112,9 @@ Example `gguf-launcher.args`:
 
 ## Notes
 
-- Without a per-model `.args` file the launcher binds `0.0.0.0:8080`, so the model is
-  reachable from other machines on the network. Once the file exists it decides: with no
-  `--host` / `--port` there, llama-server's default `127.0.0.1:8080` applies. Add
-  `--host 127.0.0.1` to an args file to keep it private.
 - Windows 11 does not let applications set the "default app" hash, so the launcher
   registers the association but you may still need to pick it once in *Open with* /
   *Default apps*.
 - Press `Ctrl+C` in the launcher console to stop the server.
 - If `llama-server` crashes on its own (non-zero exit code), the launcher prints the
   exit code and waits for a keypress before closing, so the error stays visible.
-  Pressing `Ctrl+C` to stop the server yourself does not trigger the pause.
