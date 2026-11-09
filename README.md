@@ -28,8 +28,8 @@ with sensible defaults already set, and llama.cpp's web UI opens in your browser
 dotnet publish -c Release -r win-x64 -o publish
 ```
 
-The output is a single self-contained `GgufLauncher.exe`. Windows Forms does not support
-trimming, so the build is untrimmed and the exe is larger than the earlier browser-UI build.
+The output is a single self-contained, trimmed `GgufLauncher.exe`. Trimming (partial mode)
+removes unused framework code, cutting the exe to roughly 44 MB (down from ~66 MB untrimmed).
 
 ## Use
 

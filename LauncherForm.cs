@@ -24,13 +24,9 @@ public sealed class LauncherForm : Form
     private readonly Label _argsBadge = new();
     private readonly Label _argumentNote = new();
     private readonly Label _status = new();
-    private readonly Button _saveButton = new();
     private readonly Button _launchButton = new();
     private readonly Button _saveLaunchButton = new();
     private readonly Button _loadButton = new();
-    private readonly Button _refreshButton = new();
-    private readonly Button _convertButton = new();
-    private readonly System.Windows.Forms.Timer _refreshTimer = new();
 
     private readonly Font _boldFont = BoldFont();
     private readonly Font _smallFont = SmallFont();
@@ -58,13 +54,6 @@ public sealed class LauncherForm : Form
 
         BuildLayout();
 
-        _refreshTimer.Interval = 1200;
-        _refreshTimer.Tick += (_, _) =>
-        {
-            _refreshTimer.Stop();
-            RefreshModelList(_current?.Path, reloadEditor: false);
-        };
-
         KeyDown += OnKeyDown;
         FormClosing += OnFormClosing;
 
@@ -89,7 +78,6 @@ public sealed class LauncherForm : Form
     {
         if (disposing)
         {
-            _refreshTimer.Dispose();
             _boldFont.Dispose();
             _smallFont.Dispose();
             _monoFont.Dispose();
@@ -121,67 +109,15 @@ public sealed class LauncherForm : Form
         {
             Dock = DockStyle.Fill,
             BackColor = HeaderBack,
-            ColumnCount = 2,
+            ColumnCount = 1,
             RowCount = 2,
             Padding = new Padding(18, 8, 18, 7),
             Margin = Padding.Empty,
         };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         header.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         header.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        Label title = new()
-        {
-            Text = "GGUF Launcher",
-            Font = TitleFont(),
-            ForeColor = TextColor,
-            AutoSize = true,
-            Margin = Padding.Empty,
-        };
-        Label subtitle = new()
-        {
-            Text = "Quick pick the last 10 models",
-            Font = _smallFont,
-            ForeColor = MutedColor,
-            AutoSize = true,
-            Margin = new Padding(0, 1, 0, 0),
-        };
-
-        FlowLayoutPanel actions = new()
-        {
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            AutoSize = true,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right,
-            Margin = new Padding(0, 12, 0, 0),
-        };
-
-        _loadButton.Text = "Load model...";
-        _loadButton.AutoSize = true;
-        _loadButton.Padding = new Padding(12, 4, 12, 4);
-        _loadButton.Margin = new Padding(0, 0, 6, 0);
-        _loadButton.UseVisualStyleBackColor = true;
-        _loadButton.Click += (_, _) => LoadModelFromDialog();
-
-        _refreshButton.Text = "Refresh";
-        _refreshButton.AutoSize = true;
-        _refreshButton.Padding = new Padding(12, 4, 12, 4);
-        _refreshButton.Margin = Padding.Empty;
-        _refreshButton.UseVisualStyleBackColor = true;
-        _refreshButton.Click += (_, _) =>
-        {
-            RefreshModelList(_current?.Path, reloadEditor: _current is null);
-            SetStatus("Refreshed.");
-        };
-
-        actions.Controls.Add(_loadButton);
-        actions.Controls.Add(_refreshButton);
-
-        header.Controls.Add(title, 0, 0);
-        header.Controls.Add(subtitle, 0, 1);
-        header.Controls.Add(actions, 1, 0);
-        header.SetRowSpan(actions, 2);
         return header;
     }
 
@@ -465,13 +401,11 @@ public sealed class LauncherForm : Form
             Margin = Padding.Empty,
         };
 
-        ConfigureButton(_saveButton, "Save");
-        ConfigureButton(_convertButton, "Format args");
+        ConfigureButton(_loadButton, "Load model...");
         ConfigureButton(_launchButton, "Launch");
         ConfigureButton(_saveLaunchButton, "Save & launch");
 
-        _saveButton.Click += (_, _) => SaveCurrent();
-        _convertButton.Click += OnFormatArgsClick;
+        _loadButton.Click += (_, _) => LoadModelFromDialog();
         _launchButton.Click += (_, _) => LaunchCurrent();
         _saveLaunchButton.Click += (_, _) =>
         {
@@ -481,8 +415,7 @@ public sealed class LauncherForm : Form
             }
         };
 
-        actions.Controls.Add(_saveButton);
-        actions.Controls.Add(_convertButton);
+        actions.Controls.Add(_loadButton);
         actions.Controls.Add(_launchButton);
         actions.Controls.Add(_saveLaunchButton);
 
@@ -730,39 +663,6 @@ public sealed class LauncherForm : Form
         return true;
     }
 
-    private void OnFormatArgsClick(object? sender, EventArgs e)
-    {
-        if (_current is null || _currentArgs is null)
-        {
-            return;
-        }
-
-        string formatted = ArgsConverter.FormatArgs(_argsEditor.Text);
-        if (formatted.Length == 0)
-        {
-            SetStatus("Nothing to format.");
-            return;
-        }
-
-        if (formatted == _argsEditor.Text)
-        {
-            SetStatus("Args already formatted.");
-            return;
-        }
-
-        _loadingEditor = true;
-        _argsEditor.Text = formatted;
-        _argsEditor.SelectionStart = 0;
-        _argsEditor.SelectionLength = 0;
-        _loadingEditor = false;
-
-        _dirty = true;
-        UpdateArgumentNote();
-        UpdateActionState();
-        SetStatus("Args formatted: one flag per row.", success: true);
-    }
-
-
     private void LaunchCurrent()
     {
         if (_current is null || !_current.Exists)
@@ -782,8 +682,6 @@ public sealed class LauncherForm : Form
             return;
         }
 
-        _refreshTimer.Stop();
-        _refreshTimer.Start();
         SetStatus(
             hadUnsavedChanges
                 ? "Launched with the saved .args file. Use Save && launch to include your edits."
@@ -910,13 +808,9 @@ public sealed class LauncherForm : Form
     private void UpdateActionState()
     {
         bool hasModel = _current is not null && _currentArgs is not null;
-        _saveButton.Enabled = hasModel;
         _saveLaunchButton.Enabled = hasModel;
         _launchButton.Enabled = hasModel && _current!.Exists;
         _argsEditor.ReadOnly = !hasModel;
-
-        bool hasText = hasModel && _argsEditor.Text.Length > 0;
-        _convertButton.Enabled = hasText;
     }
 
     private void SetStatus(string message, bool error = false, bool success = false)

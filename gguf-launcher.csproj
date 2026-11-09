@@ -14,10 +14,14 @@
     <Version>1.1.0</Version>
     <Description>A GGUF model launcher for Windows</Description>
     <ApplicationIcon>icon.ico</ApplicationIcon>
-    <Icon>icon.ico</Icon>
-    <!-- The native quick-pick UI uses Windows Forms, which does not support trimming. -->
     <UseWindowsForms>true</UseWindowsForms>
-    <PublishTrimmed>false</PublishTrimmed>
+    <!-- WinForms is trim-compatible on .NET 6+. Partial mode trims only our app code and
+         preserves framework assemblies, avoiding WinForms trim warnings while cutting the
+         self-contained exe size. -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <!-- Opt into WinForms trimming (SDK otherwise errors with NETSDK1175). -->
+    <_SuppressWinFormsTrimError>true</_SuppressWinFormsTrimError>
     <!-- Note: PublishAot cannot be combined with PublishSingleFile -->
   </PropertyGroup>
 
@@ -31,7 +35,8 @@
     <DebugType>embedded</DebugType>
     <!-- Smaller by not loading globalization data -->
     <InvariantGlobalization>true</InvariantGlobalization>
-    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <!-- Pre-compiles assemblies to native code for faster startup on Windows (WinForms can't use Native AOT yet). -->
+    <PublishReadyToRun>true</PublishReadyToRun>
   </PropertyGroup>
 
   <ItemGroup>
