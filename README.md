@@ -129,3 +129,6 @@ Example `gguf-launcher.args`:
   registers the association but you may still need to pick it once in *Open with* /
   *Default apps*.
 - Press `Ctrl+C` in the launcher console to stop the server.
+- If `llama-server` crashes on its own (non-zero exit code), the launcher prints the
+  exit code and waits for a keypress before closing, so the error stays visible.
+  Pressing `Ctrl+C` to stop the server yourself does not trigger the pause.

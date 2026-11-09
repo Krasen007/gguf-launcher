@@ -106,7 +106,10 @@ public static class Program
         Console.WriteLine();
 
         // Run llama-server directly, forwarding Ctrl+C so the server shuts down cleanly.
+        // If the server crashes on its own (non-zero exit, not user-initiated), keep the
+        // console open so the error is visible before the window closes.
         using CancellationTokenSource shutdown = new();
+        bool userInitiatedShutdown = false;
         try
         {
             var process = new System.Diagnostics.Process
@@ -128,6 +131,7 @@ public static class Program
             Console.CancelKeyPress += (_, e) =>
             {
                 e.Cancel = true;
+                userInitiatedShutdown = true;
                 shutdown.Cancel();
                 try
                 {
@@ -159,6 +163,12 @@ public static class Program
             if (process.ExitCode != 0)
             {
                 Console.WriteLine($"[launcher] llama-server exited: exit code {process.ExitCode}");
+                if (!userInitiatedShutdown && !Console.IsInputRedirected)
+                {
+                    Console.Write("Press any key to close...");
+                    Console.ReadKey(true);
+                    Console.WriteLine();
+                }
             }
 
             return process.ExitCode;
