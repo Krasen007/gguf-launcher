@@ -385,9 +385,9 @@ public static class LauncherArgs
 
     /// <summary>
     /// llama-server flags that accumulate instead of overwriting; all occurrences are
-    /// kept when normalizing.
+    /// kept when normalizing. Internal so the args formatter can reuse the same set.
     /// </summary>
-    private static readonly HashSet<string> RepeatableFlags = new(StringComparer.Ordinal)
+    internal static readonly HashSet<string> RepeatableFlags = new(StringComparer.Ordinal)
     {
         "-l",
         "-ot",

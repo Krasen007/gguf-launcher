@@ -1,0 +1,1 @@
+clicking format args button should remove duplicates

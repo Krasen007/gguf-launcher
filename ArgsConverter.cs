@@ -80,7 +80,71 @@ public static class ArgsConverter
             result.Add(string.Join(" ", current));
         }
 
+        result = RemoveDuplicateFlags(result);
         return string.Join(Environment.NewLine, result);
+    }
+
+    /// <summary>
+    /// Removes duplicate non-repeatable flags, keeping each flag's first-occurrence position
+    /// and its last-occurrence values ("later flags win"). Repeatable flags (LoRAs, control
+    /// vectors, --logit-bias, ...) keep every occurrence. Comment lines and lines that do not
+    /// start with a flag are left untouched. The relative order of distinct flags is preserved.
+    /// </summary>
+    private static List<string> RemoveDuplicateFlags(List<string> lines)
+    {
+        var units = new List<(string? Flag, string[] Values, string Original)>(lines.Count);
+        foreach (string line in lines)
+        {
+            string trimmed = line.Trim();
+            if (trimmed.Length == 0 || trimmed.StartsWith('#'))
+            {
+                units.Add((null, [], line));
+                continue;
+            }
+
+            string[] tokens = Tokenize(trimmed).ToArray();
+            if (tokens.Length == 0 || !IsFlag(tokens[0]))
+            {
+                units.Add((null, tokens, line));
+                continue;
+            }
+
+            units.Add((tokens[0], tokens[1..], line));
+        }
+
+        // Last occurrence index of every non-repeatable flag; its values win.
+        Dictionary<string, int> lastIndex = new(StringComparer.Ordinal);
+        for (int i = 0; i < units.Count; i++)
+        {
+            (string? flag, _, _) = units[i];
+            if (flag is string f && !LauncherArgs.RepeatableFlags.Contains(f))
+            {
+                lastIndex[f] = i;
+            }
+        }
+
+        var deduped = new List<string>(units.Count);
+        for (int i = 0; i < units.Count; i++)
+        {
+            (string? flag, string[] values, string original) = units[i];
+
+            if (flag is null)
+            {
+                // Comment or flagless line: keep verbatim.
+                deduped.Add(original);
+                continue;
+            }
+
+            if (!LauncherArgs.RepeatableFlags.Contains(flag) && lastIndex[flag] != i)
+            {
+                // Earlier duplicate of a non-repeatable flag: the last occurrence wins.
+                continue;
+            }
+
+            deduped.Add(values.Length == 0 ? flag : flag + " " + string.Join(" ", values));
+        }
+
+        return deduped;
     }
 
     private static List<string> Tokenize(string line)

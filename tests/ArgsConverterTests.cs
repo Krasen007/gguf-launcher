@@ -104,4 +104,74 @@ public class ArgsConverterTests
             "--spec-draft-n-max 2" + Environment.NewLine +
             "--ctx-size 8192", result);
     }
+
+    [Fact]
+    public void Format_RemovesEarlierDuplicate_KeepsLastValueInPlace()
+    {
+        // Later flags win; the last occurrence stays where it was, earlier duplicates vanish.
+        // Matches LauncherArgs.Normalize's "last occurrence wins" convention.
+        string result = ArgsConverter.FormatArgs("--host 0.0.0.0" + Environment.NewLine + "--port 8080" + Environment.NewLine + "--host 127.0.0.1");
+        Assert.Equal("--port 8080" + Environment.NewLine + "--host 127.0.0.1", result);
+    }
+
+    [Fact]
+    public void Format_RemovesEarlierDuplicate_SingleFlagLastValueWins()
+    {
+        string result = ArgsConverter.FormatArgs("-c 4096" + Environment.NewLine + "-c 8192");
+        Assert.Equal("-c 8192", result);
+    }
+
+    [Fact]
+    public void Format_KeepsAllRepeatableFlags()
+    {
+        string input = "--lora adapter-a" + Environment.NewLine + "--lora adapter-b";
+        string result = ArgsConverter.FormatArgs(input);
+        Assert.Equal(input, result);
+    }
+
+    [Fact]
+    public void Format_KeepsAllControlVectorLayerRanges()
+    {
+        string input = "--control-vector-layer-range 0 4" + Environment.NewLine + "--control-vector-layer-range 8 12";
+        string result = ArgsConverter.FormatArgs(input);
+        Assert.Equal(input, result);
+    }
+
+    [Fact]
+    public void Format_CollapsesDuplicateBooleanFlag()
+    {
+        string result = ArgsConverter.FormatArgs("--jinja" + Environment.NewLine + "--jinja");
+        Assert.Equal("--jinja", result);
+    }
+
+    [Fact]
+    public void Format_DuplicateDetection_IsCaseSensitive()
+    {
+        string result = ArgsConverter.FormatArgs("--HOST x" + Environment.NewLine + "--host y");
+        Assert.Equal("--HOST x" + Environment.NewLine + "--host y", result);
+    }
+
+    [Fact]
+    public void Format_PreservesComment_RemovesDuplicateHost()
+    {
+        string input = "# proxy" + Environment.NewLine + "--host 0.0.0.0" + Environment.NewLine + "--host 127.0.0.1";
+        string result = ArgsConverter.FormatArgs(input);
+        Assert.Equal("# proxy" + Environment.NewLine + "--host 127.0.0.1", result);
+    }
+
+    [Fact]
+    public void Format_PreservesOrderOfDistinctFlags()
+    {
+        string input = "--port 8080" + Environment.NewLine + "--host 0.0.0.0" + Environment.NewLine + "--host 127.0.0.1";
+        string result = ArgsConverter.FormatArgs(input);
+        Assert.Equal("--port 8080" + Environment.NewLine + "--host 127.0.0.1", result);
+    }
+
+    [Fact]
+    public void Format_DuplicateFreeInput_IsByteIdentical()
+    {
+        string input = "--alias Kestrel-4B-Coder" + Environment.NewLine + "--spec-type draft-mtp";
+        string result = ArgsConverter.FormatArgs(input);
+        Assert.Equal(input, result);
+    }
 }
