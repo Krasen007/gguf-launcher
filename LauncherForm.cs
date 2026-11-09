@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Globalization;
 using System.Windows.Forms;
 using static GgufLauncher.LauncherPalette;
@@ -23,7 +24,6 @@ public sealed class LauncherForm : Form
     private readonly Label _argsBadge = new();
     private readonly Label _argumentNote = new();
     private readonly Label _status = new();
-    private readonly Button _reloadButton = new();
     private readonly Button _saveButton = new();
     private readonly Button _launchButton = new();
     private readonly Button _saveLaunchButton = new();
@@ -48,6 +48,7 @@ public sealed class LauncherForm : Form
         _model = model;
 
         Text = "GGUF Launcher";
+        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(900, 560);
         ClientSize = new Size(1160, 700);
@@ -464,13 +465,11 @@ public sealed class LauncherForm : Form
             Margin = Padding.Empty,
         };
 
-        ConfigureButton(_reloadButton, "Reload");
         ConfigureButton(_saveButton, "Save");
         ConfigureButton(_convertButton, "Format args");
         ConfigureButton(_launchButton, "Launch");
         ConfigureButton(_saveLaunchButton, "Save & launch");
 
-        _reloadButton.Click += (_, _) => ReloadCurrent();
         _saveButton.Click += (_, _) => SaveCurrent();
         _convertButton.Click += OnFormatArgsClick;
         _launchButton.Click += (_, _) => LaunchCurrent();
@@ -482,7 +481,6 @@ public sealed class LauncherForm : Form
             }
         };
 
-        actions.Controls.Add(_reloadButton);
         actions.Controls.Add(_saveButton);
         actions.Controls.Add(_convertButton);
         actions.Controls.Add(_launchButton);
@@ -764,23 +762,6 @@ public sealed class LauncherForm : Form
         SetStatus("Args formatted: one flag per row.", success: true);
     }
 
-    private void ReloadCurrent()
-    {
-        if (_current is null)
-        {
-            return;
-        }
-
-        if (_dirty && !ConfirmDiscard())
-        {
-            return;
-        }
-
-        if (OpenModel(_current) && _current is not null && _current.Exists)
-        {
-            SetStatus("Reloaded from disk.", success: true);
-        }
-    }
 
     private void LaunchCurrent()
     {
@@ -929,7 +910,6 @@ public sealed class LauncherForm : Form
     private void UpdateActionState()
     {
         bool hasModel = _current is not null && _currentArgs is not null;
-        _reloadButton.Enabled = hasModel;
         _saveButton.Enabled = hasModel;
         _saveLaunchButton.Enabled = hasModel;
         _launchButton.Enabled = hasModel && _current!.Exists;
