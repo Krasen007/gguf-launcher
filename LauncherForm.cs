@@ -26,6 +26,7 @@ public sealed class LauncherForm : Form
     private readonly Label _status = new();
     private readonly Button _saveLaunchButton = new();
     private readonly Button _loadButton = new();
+    private readonly Button _formatButton = new();
 
     private readonly Font _boldFont = BoldFont();
     private readonly Font _smallFont = SmallFont();
@@ -401,9 +402,11 @@ public sealed class LauncherForm : Form
         };
 
         ConfigureButton(_loadButton, "Load model...");
+        ConfigureButton(_formatButton, "Format args");
         ConfigureButton(_saveLaunchButton, "Save & launch");
 
         _loadButton.Click += (_, _) => LoadModelFromDialog();
+        _formatButton.Click += OnFormatArgsClick;
         _saveLaunchButton.Click += (_, _) =>
         {
             if (SaveCurrent())
@@ -413,6 +416,7 @@ public sealed class LauncherForm : Form
         };
 
         actions.Controls.Add(_loadButton);
+        actions.Controls.Add(_formatButton);
         actions.Controls.Add(_saveLaunchButton);
 
         footer.Controls.Add(_status, 0, 0);
@@ -801,10 +805,46 @@ public sealed class LauncherForm : Form
         _argsBadge.BackColor = args.Exists ? BadgeBack : SystemColors.Window;
     }
 
+    private void OnFormatArgsClick(object? sender, EventArgs e)
+    {
+        if (_current is null || _currentArgs is null)
+        {
+            return;
+        }
+
+        string formatted = ArgsConverter.FormatArgs(_argsEditor.Text);
+        if (formatted.Length == 0)
+        {
+            SetStatus("Nothing to format.");
+            return;
+        }
+
+        if (formatted == _argsEditor.Text)
+        {
+            SetStatus("Args already formatted.");
+            return;
+        }
+
+        _loadingEditor = true;
+        _argsEditor.Text = formatted;
+        _argsEditor.SelectionStart = 0;
+        _argsEditor.SelectionLength = 0;
+        _loadingEditor = false;
+
+        _dirty = true;
+        UpdateArgumentNote();
+        UpdateActionState();
+        SetStatus("Args formatted: one flag per row.", success: true);
+    }
+
     private void UpdateActionState()
     {
         bool hasModel = _current is not null && _currentArgs is not null;
         _saveLaunchButton.Enabled = hasModel;
+
+        bool hasText = hasModel && _argsEditor.Text.Length > 0;
+        _formatButton.Enabled = hasText;
+
         _argsEditor.ReadOnly = !hasModel;
     }
 
