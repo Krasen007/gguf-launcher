@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using static GgufLauncher.LauncherPalette;
 
@@ -43,7 +44,7 @@ public sealed class LauncherForm : Form
         _model = model;
 
         Text = "GGUF Launcher";
-        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        Icon = AppIcon();
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(900, 560);
         ClientSize = new Size(1160, 700);
@@ -95,7 +96,7 @@ public sealed class LauncherForm : Form
             Margin = Padding.Empty,
             Padding = Padding.Empty,
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 60F));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 0F));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         root.Controls.Add(BuildHeader(), 0, 0);
         root.Controls.Add(BuildBody(), 0, 1);
@@ -397,6 +398,9 @@ public sealed class LauncherForm : Form
             if (SaveCurrent())
             {
                 LaunchCurrent();
+                {
+                    Close();
+                }
             }
         };
 
@@ -942,4 +946,35 @@ public sealed class LauncherForm : Form
 
         return when.Value.ToLocalTime().ToString("d", CultureInfo.CurrentCulture);
     }
+
+    /// <summary>
+    /// The <c>icon.ico</c> (embedded via <see cref="ApplicationIcon"/>) already ships every
+    /// resolution from 16×16 up to 256×256. <see cref="Icon.ExtractAssociatedIcon"/> goes
+    /// through the shell and returns a single fixed-size icon (about 32–64 px), so the
+    /// 256×256 source is never used and the form icon gets stretched. Pull the largest image
+    /// straight from the executable's own icon resource instead.
+    /// </summary>
+    private static Icon AppIcon()
+    {
+        string exe = Application.ExecutablePath;
+        IntPtr[] handles = new IntPtr[1];
+        int extracted = PrivateExtractIcons(exe, 0, 256, 256, handles, IntPtr.Zero, 1, 0);
+        if (extracted > 0 && handles[0] != IntPtr.Zero)
+        {
+            return Icon.FromHandle(handles[0]);
+        }
+
+        return Icon.ExtractAssociatedIcon(exe)!;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int PrivateExtractIcons(
+        string pszFile,
+        int nIconIndex,
+        int cxDesired,
+        int cyDesired,
+        IntPtr[] phiconOut,
+        IntPtr pniFile,
+        uint nFiles,
+        uint flags);
 }
