@@ -283,3 +283,14 @@ valid, independently-tokenized .args line. Formatted text is marked dirty and sa
 other edit. The earlier "Copy to clipboard" button was removed.
 
 Test: `tests/ArgsConverterTests.cs`
+
+## 2026-11-10 - app icon verification and blue args rectangle removal
+
+Request:
+
+> 1. the app icon is not properly shown in file explorer it appers to be 64x64 maybe can you verify?
+> 2. remove the blue args rectangle in the UI
+
+Behavior change: Verified `icon.ico` contains a single non-standard 251x256 32bpp image (no 16/32/48/64/128/256 resolutions), so Windows Explorer must stretch it at every shell size, making it look like a low-resolution 64x64 blob. A proper icon requires square source artwork (e.g., 512x512 PNG); `image.png` (1161x732) is not usable as icon source. Removed the non-functional blue `_argsBadge` label (`BadgeBack`/`AccentColor`) from `LauncherForm`: deleted the field, its setup block, the second header column, and all references in `ClearSelection` and `UpdateHeader`. Build succeeds with 0 warnings/errors; all 104 tests pass.
+
+Test: `tests/ArgsBadgeRemovedTests.cs`

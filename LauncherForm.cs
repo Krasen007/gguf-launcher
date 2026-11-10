@@ -21,7 +21,6 @@ public sealed class LauncherForm : Form
     private readonly Label _modelName = new();
     private readonly Label _modelDirectory = new();
     private readonly Label _argsPath = new();
-    private readonly Label _argsBadge = new();
     private readonly Label _argumentNote = new();
     private readonly Label _status = new();
     private readonly Button _saveLaunchButton = new();
@@ -259,13 +258,12 @@ public sealed class LauncherForm : Form
         TableLayoutPanel header = new()
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
+            ColumnCount = 1,
             RowCount = 2,
             Margin = Padding.Empty,
             Padding = Padding.Empty,
         };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         header.RowStyles.Add(new RowStyle(SizeType.Percent, 55F));
         header.RowStyles.Add(new RowStyle(SizeType.Percent, 45F));
 
@@ -284,21 +282,8 @@ public sealed class LauncherForm : Form
         _modelDirectory.ForeColor = MutedColor;
         _modelDirectory.Margin = Padding.Empty;
 
-        _argsBadge.AutoSize = true;
-        _argsBadge.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        _argsBadge.TextAlign = ContentAlignment.MiddleCenter;
-        _argsBadge.Font = _smallFont;
-        _argsBadge.ForeColor = AccentColor;
-        _argsBadge.BackColor = BadgeBack;
-        _argsBadge.BorderStyle = BorderStyle.FixedSingle;
-        _argsBadge.Padding = new Padding(8, 3, 8, 3);
-        _argsBadge.Margin = new Padding(12, 8, 0, 0);
-        _argsBadge.Visible = false;
-
         header.Controls.Add(_modelName, 0, 0);
         header.Controls.Add(_modelDirectory, 0, 1);
-        header.Controls.Add(_argsBadge, 1, 0);
-        header.SetRowSpan(_argsBadge, 2);
         return header;
     }
 
@@ -616,7 +601,6 @@ public sealed class LauncherForm : Form
             ? "Open a .gguf file once and it will appear here for quick pick."
             : "Pick a model on the left to view and edit its .args file.";
         _argsPath.Text = "";
-        _argsBadge.Visible = false;
         UpdateActionState();
         SetStatus("");
     }
@@ -799,10 +783,6 @@ public sealed class LauncherForm : Form
         _modelName.ForeColor = entry.Exists ? TextColor : MutedColor;
         _modelDirectory.Text = entry.Directory;
         _argsPath.Text = args.ArgsPath;
-        _argsBadge.Visible = true;
-        _argsBadge.Text = args.Exists ? "args file" : "preview - not saved yet";
-        _argsBadge.ForeColor = args.Exists ? AccentColor : MutedColor;
-        _argsBadge.BackColor = args.Exists ? BadgeBack : SystemColors.Window;
     }
 
     private void OnFormatArgsClick(object? sender, EventArgs e)
